@@ -54,6 +54,10 @@
     <string name="preview_session_summary_time">周一</string>
 
     <string name="chat_preview_user_message_short">帮我把今天的学习计划整理成三步。</string>
+    <string name="chat_preview_user_message_mixed">用 Python 3.13 写一个示例。</string>
+    <string name="chat_preview_user_message_multiline">第一行用于检查顶部留白。\n第二行用于检查底部留白。</string>
+    <string name="chat_preview_user_message_markdown_inline"><![CDATA[运行 **Compose** 示例。]]></string>
+    <string name="chat_preview_user_message_markdown_blocks">第一段检查顶部留白。\n\n- 第二个 Markdown 块\n- 块间距应继续保留</string>
     <string name="chat_preview_assistant_message_short">可以。先把今天必须完成的内容列出来，再按难度和精力分配顺序，最后为每一项设置一个可以检查的完成标准。</string>
     <string name="chat_preview_user_message_long">我还想保留一些休息时间，最好不要把安排排得太满，晚上只做复盘和轻量阅读。</string>
     <string name="chat_preview_assistant_message_long">那可以把计划压缩成上午、下午、晚上三个时间段。上午处理最需要专注的任务，下午做资料整理和输出，晚上只保留 20 分钟复盘，再安排一段轻阅读。这样节奏更稳，也更容易坚持。</string>

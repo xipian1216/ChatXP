@@ -1,11 +1,15 @@
 package com.xipian.chatxp_android.ui.screens.chat.component.markdown
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.CollectionInfo
@@ -18,6 +22,7 @@ import com.xipian.chatxp_android.ui.screens.chat.component.MessageBubble
 import com.xipian.chatxp_android.ui.theme.ChatXPandroidTheme
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
@@ -67,6 +72,44 @@ class ChatMarkdownTest {
         }
 
         composeRule.onNodeWithText(renderedText).assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun trimmedMarkdownOmitsLeadingBlockSpacing() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val markdown = context.getString(R.string.chat_preview_markdown_user)
+        val renderedText = context.getString(R.string.chat_preview_markdown_user_rendered)
+
+        composeRule.setContent {
+            ChatXPandroidTheme {
+                Column {
+                    ChatMarkdown(
+                        content = markdown,
+                        modifier = Modifier.testTag("markdown_default")
+                    )
+                    ChatMarkdown(
+                        content = markdown,
+                        modifier = Modifier.testTag("markdown_trimmed"),
+                        trimLeadingBlockSpacing = true
+                    )
+                }
+            }
+        }
+
+        composeRule.waitUntilNodeCount(hasText(renderedText), 2)
+        val defaultHeight = composeRule
+            .onNodeWithTag("markdown_default")
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .height
+        val trimmedHeight = composeRule
+            .onNodeWithTag("markdown_trimmed")
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .height
+
+        assertTrue(defaultHeight > trimmedHeight)
     }
 
     @OptIn(ExperimentalTestApi::class)

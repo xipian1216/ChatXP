@@ -1,6 +1,7 @@
 package com.xipian.chatxp_android.ui.screens.chat.component.markdown
 
 import android.content.Context
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -11,7 +12,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
+import com.mikepenz.markdown.compose.MarkdownElement
+import com.mikepenz.markdown.compose.MarkdownSuccess
 import com.mikepenz.markdown.compose.LocalMarkdownA11yLabels
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.model.MarkdownA11yLabels
@@ -24,7 +28,9 @@ import java.util.Locale
 @Composable
 fun ChatMarkdown(
     content: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    bodyStyle: TextStyle = MaterialTheme.typography.bodyMedium,
+    trimLeadingBlockSpacing: Boolean = false
 ) {
     if (content.isEmpty()) return
 
@@ -42,7 +48,7 @@ fun ChatMarkdown(
         Text(
             text = content,
             color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodyMedium,
+            style = bodyStyle,
             modifier = fallbackModifier
         )
     }
@@ -54,12 +60,32 @@ fun ChatMarkdown(
         Markdown(
             markdownState = markdownState,
             colors = chatMarkdownColors(),
-            typography = chatMarkdownTypography(),
+            typography = chatMarkdownTypography(bodyStyle),
             modifier = modifier,
             padding = chatMarkdownPadding(),
             dimens = chatMarkdownDimens(),
             components = chatMarkdownComponents(),
             loading = fallback,
+            success = { state, components, successModifier ->
+                if (trimLeadingBlockSpacing) {
+                    Column(successModifier) {
+                        state.node.children.forEachIndexed { index, node ->
+                            MarkdownElement(
+                                node = node,
+                                components = components,
+                                content = state.content,
+                                includeSpacer = index > 0
+                            )
+                        }
+                    }
+                } else {
+                    MarkdownSuccess(
+                        state = state,
+                        components = components,
+                        modifier = successModifier
+                    )
+                }
+            },
             error = fallback
         )
     }

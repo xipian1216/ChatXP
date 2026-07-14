@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
@@ -39,8 +40,7 @@ internal fun chatMarkdownColors(): MarkdownColors = markdownColor(
 )
 
 @Composable
-internal fun chatMarkdownTypography(): MarkdownTypography {
-    val body = MaterialTheme.typography.bodyMedium
+internal fun chatMarkdownTypography(body: TextStyle): MarkdownTypography {
     val code = body.copy(fontFamily = FontFamily.Monospace)
     val linkStyles = TextLinkStyles(
         style = SpanStyle(
