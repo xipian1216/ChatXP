@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.xipian.chatxp_android.R
 import com.xipian.chatxp_android.ui.screens.chat.preview.ChatComponentPreview
@@ -15,6 +17,7 @@ import com.xipian.chatxp_android.ui.screens.chat.preview.ChatPreviewFrame
 import com.xipian.chatxp_android.ui.theme.ChatCorner
 import com.xipian.chatxp_android.ui.token.DisabledAlpha
 import com.xipian.chatxp_android.ui.token.IconButtonSize
+import com.xipian.chatxp_android.ui.token.SmallIconSize
 
 @Composable
 fun ThreadSessionMenu(
@@ -33,6 +36,14 @@ fun ThreadSessionMenu(
     ) {
         DropdownMenuItem(
             text = { Text(stringResource(R.string.thread_action_rename)) },
+            leadingIcon = {
+                Icon(
+                    painter = painterResource(R.drawable.rename),
+                    contentDescription = null,
+                    modifier = Modifier.size(SmallIconSize),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            },
             onClick = onRenameClick
         )
         DropdownMenuItem(
@@ -43,6 +54,14 @@ fun ThreadSessionMenu(
                     )
                 )
             },
+            leadingIcon = {
+                Icon(
+                    painter = painterResource(R.drawable.pin_to_top),
+                    contentDescription = null,
+                    modifier = Modifier.size(SmallIconSize),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            },
             onClick = onTogglePinClick
         )
         DropdownMenuItem(
@@ -50,6 +69,16 @@ fun ThreadSessionMenu(
                 Text(
                     text = stringResource(R.string.thread_action_delete),
                     color = MaterialTheme.colorScheme.error.copy(
+                        alpha = if (isDeleteEnabled) 1f else DisabledAlpha
+                    )
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    painter = painterResource(R.drawable.delete),
+                    contentDescription = null,
+                    modifier = Modifier.size(SmallIconSize),
+                    tint = MaterialTheme.colorScheme.error.copy(
                         alpha = if (isDeleteEnabled) 1f else DisabledAlpha
                     )
                 )

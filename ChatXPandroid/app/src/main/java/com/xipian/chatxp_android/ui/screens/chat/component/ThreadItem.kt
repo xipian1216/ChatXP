@@ -2,10 +2,13 @@ package com.xipian.chatxp_android.ui.screens.chat.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,10 +23,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.xipian.chatxp_android.R
 import com.xipian.chatxp_android.ui.screens.chat.preview.ChatComponentPreview
 import com.xipian.chatxp_android.ui.screens.chat.preview.ChatPreviewFrame
@@ -33,6 +42,7 @@ import com.xipian.chatxp_android.ui.token.Space2
 import com.xipian.chatxp_android.ui.token.Space4
 import com.xipian.chatxp_android.ui.token.ThreadItemHorizontalPadding
 import com.xipian.chatxp_android.ui.token.ThreadItemVerticalPadding
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -48,14 +58,37 @@ fun ThreadItem(
     modifier: Modifier = Modifier
 ) {
     var isMenuExpanded by remember { mutableStateOf(false) }
+    var pendingPressPosition by remember { mutableStateOf<Offset?>(null) }
+    var menuAnchorPosition by remember { mutableStateOf(Offset.Zero) }
+    var itemSize by remember { mutableStateOf(IntSize.Zero) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .onSizeChanged { itemSize = it }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        pendingPressPosition = awaitFirstDown(
+                            requireUnconsumed = false,
+                            pass = PointerEventPass.Initial
+                        ).position
+                    }
+                }
                 .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = { isMenuExpanded = true }
+                    onClick = {
+                        pendingPressPosition = null
+                        onClick()
+                    },
+                    onLongClick = {
+                        menuAnchorPosition = pendingPressPosition
+                            ?: Offset(
+                                x = itemSize.width / 2f,
+                                y = itemSize.height / 2f
+                            )
+                        pendingPressPosition = null
+                        isMenuExpanded = true
+                    }
                 ),
             shape = MaterialTheme.shapes.medium,
             color = if (isSelected || isPinned) {
@@ -91,24 +124,39 @@ fun ThreadItem(
             }
         }
 
-        ThreadSessionMenu(
-            expanded = isMenuExpanded,
-            isPinned = isPinned,
-            isDeleteEnabled = isDeleteEnabled,
-            onDismiss = { isMenuExpanded = false },
-            onRenameClick = {
-                isMenuExpanded = false
-                onRenameRequest()
-            },
-            onTogglePinClick = {
-                isMenuExpanded = false
-                onTogglePin()
-            },
-            onDeleteClick = {
-                isMenuExpanded = false
-                onDeleteRequest()
+        Box(
+            modifier = Modifier.offset {
+                IntOffset(
+                    menuAnchorPosition.x.roundToInt(),
+                    menuAnchorPosition.y.roundToInt()
+                )
             }
-        )
+        ) {
+            ThreadSessionMenu(
+                expanded = isMenuExpanded,
+                isPinned = isPinned,
+                isDeleteEnabled = isDeleteEnabled,
+                onDismiss = {
+                    isMenuExpanded = false
+                    pendingPressPosition = null
+                },
+                onRenameClick = {
+                    isMenuExpanded = false
+                    pendingPressPosition = null
+                    onRenameRequest()
+                },
+                onTogglePinClick = {
+                    isMenuExpanded = false
+                    pendingPressPosition = null
+                    onTogglePin()
+                },
+                onDeleteClick = {
+                    isMenuExpanded = false
+                    pendingPressPosition = null
+                    onDeleteRequest()
+                }
+            )
+        }
     }
 }
 
