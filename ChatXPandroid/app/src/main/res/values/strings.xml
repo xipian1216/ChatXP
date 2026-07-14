@@ -1,0 +1,76 @@
+<resources>
+    <string name="app_name">ChatXP-android</string>
+
+    <string name="chat_model_name">5.5 均衡</string>
+    <string name="chat_model_subtitle">模型配置</string>
+    <string name="chat_composer_placeholder">问问ChatGPT</string>
+    <string name="chat_empty_title">今天想聊什么？</string>
+    <string name="chat_empty_description">可以从学习计划、写作提纲或资料整理开始。</string>
+    <string name="chat_replying">正在回复…</string>
+    <string name="chat_error_network">网络连接失败，请检查后重试。</string>
+    <string name="chat_error_auth">身份验证失败，请稍后重试。</string>
+    <string name="chat_error_rate_limit">请求过于频繁，请稍后再试。</string>
+    <string name="chat_error_provider_unavailable">模型服务暂时不可用，请稍后重试。</string>
+    <string name="chat_error_validation">当前请求无效，请重新输入后发送。</string>
+    <string name="chat_error_generation_interrupted">回复生成已中断，请重新发送。</string>
+    <string name="chat_error_unknown">发生未知错误，请稍后重试。</string>
+
+    <string name="markdown_blockquote">引用</string>
+    <string name="markdown_code_block">代码块</string>
+    <string name="markdown_code_block_with_language">%1$s 代码块</string>
+    <string name="markdown_code_language">代码语言：%1$s</string>
+    <string name="markdown_code_language_default">纯文本</string>
+    <string name="markdown_copy_code">复制代码</string>
+    <string name="markdown_image_alt">图片：%1$s</string>
+
+    <string name="drawer_title">最近</string>
+    <string name="drawer_search_placeholder">搜索会话</string>
+    <string name="drawer_search_empty">没有找到相关会话</string>
+    <string name="drawer_chat_button">聊天</string>
+    <string name="drawer_profile_label">我</string>
+    <string name="drawer_new_session_title">新对话</string>
+    <string name="drawer_time_now">刚刚</string>
+    <string name="drawer_pinned">置顶</string>
+    <string name="drawer_close">关闭会话菜单</string>
+    <string name="drawer_clear_search">清空搜索</string>
+    <string name="thread_action_rename">重命名</string>
+    <string name="thread_action_pin">置顶</string>
+    <string name="thread_action_unpin">取消置顶</string>
+    <string name="thread_action_delete">删除</string>
+    <string name="thread_rename_title">重命名会话</string>
+    <string name="thread_rename_field_label">会话名称</string>
+    <string name="thread_delete_title">删除会话？</string>
+    <string name="thread_delete_message">删除后无法恢复，确认删除这个会话吗？</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete">删除</string>
+    <string name="icon_pinned">已置顶</string>
+
+    <string name="preview_session_study_title">学习计划</string>
+    <string name="preview_session_writing_title">写作提纲</string>
+    <string name="preview_session_summary_title">资料摘要</string>
+    <string name="preview_session_study_time">10:24</string>
+    <string name="preview_session_writing_time">昨天</string>
+    <string name="preview_session_summary_time">周一</string>
+
+    <string name="chat_preview_user_message_short">帮我把今天的学习计划整理成三步。</string>
+    <string name="chat_preview_assistant_message_short">可以。先把今天必须完成的内容列出来，再按难度和精力分配顺序，最后为每一项设置一个可以检查的完成标准。</string>
+    <string name="chat_preview_user_message_long">我还想保留一些休息时间，最好不要把安排排得太满，晚上只做复盘和轻量阅读。</string>
+    <string name="chat_preview_assistant_message_long">那可以把计划压缩成上午、下午、晚上三个时间段。上午处理最需要专注的任务，下午做资料整理和输出，晚上只保留 20 分钟复盘，再安排一段轻阅读。这样节奏更稳，也更容易坚持。</string>
+    <string name="chat_preview_markdown_user"><![CDATA[请用 **Markdown** 给我一个包含列表和代码的学习计划。]]></string>
+    <string name="chat_preview_markdown_assistant">## 今日计划\n\n&gt; 先完成最重要的任务，再处理补充内容。\n\n1. 阅读 **Compose** 文档\n2. 完成 Markdown 渲染\n3. 运行 `assembleDebug`\n\n| 时间 | 任务 |\n| --- | --- |\n| 上午 | 阅读文档 |\n| 下午 | 编写代码 |\n\n```kotlin\n@Composable\nfun Greeting(name: String) {\n    Text("Hello, $name")\n}\n```\n\n[Android Developers](https://developer.android.com)</string>
+    <string name="chat_preview_markdown_heading">今日计划</string>
+    <string name="chat_preview_markdown_link_label">Android Developers</string>
+    <string name="chat_preview_markdown_user_rendered">请用 Markdown 给我一个包含列表和代码的学习计划。</string>
+    <string name="chat_preview_markdown_stream_start">**第一段**</string>
+    <string name="chat_preview_markdown_stream_start_rendered">第一段</string>
+    <string name="chat_preview_markdown_stream_end">## 第二段</string>
+    <string name="chat_preview_markdown_stream_end_rendered">第二段</string>
+
+    <string name="icon_menu">≡</string>
+    <string name="icon_add">+</string>
+    <string name="icon_more">⋯</string>
+    <string name="icon_send">↑</string>
+    <string name="icon_close">×</string>
+    <string name="icon_clear">×</string>
+</resources>
