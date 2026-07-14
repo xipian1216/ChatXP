@@ -30,8 +30,6 @@ class ThreadItemTest {
             ChatXPandroidTheme {
                 ThreadItem(
                     title = "Session",
-                    messagePreview = "Preview",
-                    updatedAtText = "Now",
                     isPinned = false,
                     isSelected = false,
                     isDeleteEnabled = true,

@@ -3,7 +3,6 @@ package com.xipian.chatxp_android.ui.screens.chat.component
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,17 +31,13 @@ import com.xipian.chatxp_android.ui.screens.chat.preview.previewChatSessions
 import com.xipian.chatxp_android.ui.token.SmallIconSize
 import com.xipian.chatxp_android.ui.token.Space2
 import com.xipian.chatxp_android.ui.token.Space4
-import com.xipian.chatxp_android.ui.token.ThreadItemContentSpacing
 import com.xipian.chatxp_android.ui.token.ThreadItemHorizontalPadding
 import com.xipian.chatxp_android.ui.token.ThreadItemVerticalPadding
-import com.xipian.chatxp_android.ui.token.ThreadPreviewTopMargin
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ThreadItem(
     title: String,
-    messagePreview: String,
-    updatedAtText: String,
     isPinned: Boolean,
     isSelected: Boolean,
     isDeleteEnabled: Boolean,
@@ -85,28 +80,13 @@ fun ThreadItem(
                     )
                     Spacer(modifier = Modifier.width(Space2))
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = messagePreview,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = ThreadPreviewTopMargin)
-                    )
-                }
-                Spacer(modifier = Modifier.width(ThreadItemContentSpacing))
                 Text(
-                    text = updatedAtText,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall
+                    text = title,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -140,8 +120,6 @@ private fun ThreadItemPreview() {
     ChatPreviewFrame(contentAlignment = Alignment.TopCenter) {
         ThreadItem(
             title = session.sessionTitle,
-            messagePreview = session.messagePreview,
-            updatedAtText = session.updatedAtText,
             isPinned = true,
             isSelected = false,
             isDeleteEnabled = true,

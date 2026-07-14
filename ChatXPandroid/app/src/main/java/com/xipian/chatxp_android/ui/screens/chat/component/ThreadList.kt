@@ -64,8 +64,6 @@ fun ThreadList(
         items(sessions, key = { it.sessionId }) { session ->
             ThreadItem(
                 title = session.sessionTitle,
-                messagePreview = session.messagePreview,
-                updatedAtText = session.updatedAtText,
                 isPinned = session.isPinned,
                 isSelected = session.sessionId == selectedSessionId,
                 isDeleteEnabled = !isGenerating || session.sessionId != selectedSessionId,

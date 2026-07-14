@@ -75,7 +75,7 @@ fun ThreadSearchField(
                             Text(
                                 text = placeholder,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelLarge
                             )
                         }
                         innerTextField()
