@@ -1,0 +1,10 @@
+{
+  "assistant_message": {},
+  "finish_reason": "stop",
+  "usage": {
+    "prompt_tokens": 120,
+    "completion_tokens": 280,
+    "total_tokens": 400
+  },
+  "session": {}
+}

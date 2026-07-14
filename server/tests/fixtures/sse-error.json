@@ -1,0 +1,6 @@
+{
+  "code": "PROVIDER_UNAVAILABLE",
+  "message": "Upstream provider unavailable",
+  "retryable": true,
+  "assistant_message_id": "25626d53-b060-4ac8-8e83-a0db882cf8df"
+}
