@@ -536,7 +536,9 @@ class ChatCoordinator:
                 "client_message_id": str(request.client_message_id),
                 "session_id": str(request.session_id) if request.session_id else None,
                 "model_id": model_id,
-                "content": request.content,
+                # Keep the original V1 fingerprint normalization so requests created before
+                # Markdown whitespace preservation remain safely retryable after deployment.
+                "content": request.content.strip(),
             }
         )
 

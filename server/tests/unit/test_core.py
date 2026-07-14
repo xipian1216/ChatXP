@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from chatxp.core.config import ProviderModelConfig, Settings
 from chatxp.core.cursor import InvalidCursorError, decode_cursor, encode_cursor
@@ -36,14 +37,30 @@ def test_model_catalog_rejects_duplicate_ids() -> None:
         Settings(ai_default_model="same", ai_models_json=[model, model])
 
 
-def test_chat_strings_are_trimmed_before_length_validation() -> None:
+def test_chat_preserves_markdown_whitespace_and_normalizes_model_id() -> None:
+    content = "\r\n    print('hello')  \r\n"
     request = ChatStreamRequest.model_validate(
         {
             "client_request_id": "1f5735d5-9c41-4350-bee2-728524106e55",
             "client_message_id": "50711fca-62c8-40d2-98a3-34c74d175962",
             "model_id": " chat-default ",
-            "content": " hello ",
+            "content": content,
         }
     )
     assert request.model_id == "chat-default"
-    assert request.content == "hello"
+    assert request.content == content
+
+
+def test_chat_rejects_blank_and_oversized_original_content() -> None:
+    base = {
+        "client_request_id": "1f5735d5-9c41-4350-bee2-728524106e55",
+        "client_message_id": "50711fca-62c8-40d2-98a3-34c74d175962",
+        "model_id": "chat-default",
+    }
+    with pytest.raises(ValidationError):
+        ChatStreamRequest.model_validate({**base, "content": " \n\t "})
+
+    boundary = " " + "x" * 19_999
+    assert ChatStreamRequest.model_validate({**base, "content": boundary}).content == boundary
+    with pytest.raises(ValidationError):
+        ChatStreamRequest.model_validate({**base, "content": boundary + "x"})

@@ -125,10 +125,12 @@ class ChatStreamRequest(BaseModel):
     model_id: str | None = Field(default=None, min_length=1, max_length=100)
     content: str = Field(min_length=1, max_length=20_000)
 
-    @field_validator("content", mode="before")
+    @field_validator("content")
     @classmethod
-    def normalize_content(cls, value: Any) -> Any:
-        return value.strip() if isinstance(value, str) else value
+    def validate_content(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Content must include at least one non-whitespace character")
+        return value
 
     @field_validator("model_id", mode="before")
     @classmethod

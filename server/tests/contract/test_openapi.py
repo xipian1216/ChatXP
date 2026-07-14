@@ -35,6 +35,10 @@ def test_openapi_contains_frozen_first_milestone_routes() -> None:
     ]["schema"]["$ref"].endswith("/DataEnvelope_SessionDto_")
     assert "204" in session_path["delete"]["responses"]
     assert "content" not in session_path["delete"]["responses"]["204"]
+    chat_request = schema["components"]["schemas"]["ChatStreamRequest"]
+    content_schema = chat_request["properties"]["content"]
+    assert content_schema["minLength"] == 1
+    assert content_schema["maxLength"] == 20_000
     assert "ErrorEnvelope" in schema["components"]["schemas"]
     for path in paths.values():
         for operation in path.values():

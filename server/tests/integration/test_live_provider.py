@@ -19,9 +19,16 @@ async def test_configured_openai_compatible_provider_streams() -> None:
     events = [
         event
         async for event in provider.stream_chat(
-            provider_model, [ProviderMessage("user", "Reply with the word OK.")]
+            provider_model,
+            [
+                ProviderMessage(
+                    "user", "Reply with exactly this Markdown and nothing else: **OK**"
+                )
+            ],
         )
     ]
-    assert any(isinstance(event, ProviderDelta) and event.content for event in events)
+    content = "".join(
+        event.content for event in events if isinstance(event, ProviderDelta)
+    )
+    assert "**OK**" in content
     assert isinstance(events[-1], ProviderDone)
-

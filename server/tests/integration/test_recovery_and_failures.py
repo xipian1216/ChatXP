@@ -29,7 +29,7 @@ class PartialFailureProvider:
         self, provider_model: str, messages: Sequence[ProviderMessage]
     ) -> AsyncIterator[ProviderEvent]:
         del provider_model, messages
-        yield ProviderDelta("partial")
+        yield ProviderDelta("```python\npartial")
         raise ProviderUnavailableError("test failure")
 
 
@@ -85,7 +85,7 @@ async def test_partial_provider_failure_is_streamed_and_recoverable(
     )
     generation = recovered.json()["data"]
     assert generation["status"] == "failed"
-    assert generation["assistant_message"]["content"] == "partial"
+    assert generation["assistant_message"]["content"] == "```python\npartial"
     assert generation["assistant_message"]["error_code"] == "PROVIDER_UNAVAILABLE"
 
 

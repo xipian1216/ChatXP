@@ -18,10 +18,17 @@ from chatxp.providers.base import (
 
 
 class OpenAICompatibleProvider:
-    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 120) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float = 120,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._timeout = httpx.Timeout(timeout_seconds, connect=15)
+        self._transport = transport
 
     async def stream_chat(
         self, provider_model: str, messages: Sequence[ProviderMessage]
@@ -35,7 +42,9 @@ class OpenAICompatibleProvider:
         finish_reason = "stop"
         usage: ProviderUsage | None = None
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, transport=self._transport
+            ) as client:
                 async with client.stream(
                     "POST",
                     f"{self._base_url}/chat/completions",
