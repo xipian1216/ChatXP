@@ -88,7 +88,8 @@ class ChatCoordinator:
                 )
                 if existing is not None:
                     model_id = request.model_id or existing.model_id
-                    fingerprint = self._fingerprint(request, model_id)
+                    reasoning_mode = request.reasoning_mode or existing.reasoning_mode
+                    fingerprint = self._fingerprint(request, model_id, reasoning_mode)
                     if not _constant_string_equal(existing.request_fingerprint, fingerprint):
                         raise AppError(
                             409,
@@ -124,14 +125,28 @@ class ChatCoordinator:
                             "model_id is required for a new session",
                             {"fields": [{"path": "body.model_id", "message": "Field required"}]},
                         )
+                    if request.reasoning_mode is None:
+                        raise AppError(
+                            400,
+                            "VALIDATION_ERROR",
+                            "reasoning_mode is required for a new session",
+                            {
+                                "fields": [
+                                    {"path": "body.reasoning_mode", "message": "Field required"}
+                                ]
+                            },
+                        )
                     model_id = request.model_id
                     self._require_model(model_id)
+                    reasoning_mode = request.reasoning_mode
+                    self._require_reasoning(model_id, reasoning_mode)
                     now = utcnow()
                     chat_session = ChatSession(
                         id=new_uuid(),
                         user_id=user_id,
                         title=default_title(request.content),
                         model_id=model_id,
+                        reasoning_mode=reasoning_mode,
                         is_pinned=False,
                         created_at=now,
                         updated_at=now,
@@ -149,7 +164,9 @@ class ChatCoordinator:
                         raise AppError(404, "SESSION_NOT_FOUND", "Session not found")
                     chat_session = existing_session
                     model_id = request.model_id or chat_session.model_id
+                    reasoning_mode = request.reasoning_mode or chat_session.reasoning_mode
                     self._require_model(model_id)
+                    self._require_reasoning(model_id, reasoning_mode)
                     maximum = await db.scalar(
                         select(func.max(Message.sequence)).where(
                             Message.session_id == chat_session.id
@@ -180,6 +197,7 @@ class ChatCoordinator:
                     status="streaming",
                     sequence=first_sequence + 1,
                     model_id=model_id,
+                    reasoning_mode=reasoning_mode,
                     created_at=now,
                     updated_at=now,
                 )
@@ -191,8 +209,11 @@ class ChatCoordinator:
                     user_message_id=user_message.id,
                     assistant_message_id=assistant_message.id,
                     model_id=model_id,
+                    reasoning_mode=reasoning_mode,
                     status="queued",
-                    request_fingerprint=self._fingerprint(request, model_id),
+                    request_fingerprint=self._fingerprint(
+                        request, model_id, reasoning_mode
+                    ),
                     created_at=now,
                     updated_at=now,
                 )
@@ -304,7 +325,9 @@ class ChatCoordinator:
             persisted_length = len(accumulated)
             last_persisted = time.monotonic()
             completed: ProviderDone | None = None
-            async for event in self._provider.stream_chat(provider_model, messages):
+            async for event in self._provider.stream_chat(
+                provider_model, generation.reasoning_mode, messages
+            ):
                 if isinstance(event, ProviderDelta):
                     accumulated += event.content
                     self._broker.publish(
@@ -510,6 +533,7 @@ class ChatCoordinator:
                 status=generation.status,
                 session_id=generation.session_id,
                 user_message_id=generation.user_message_id,
+                reasoning_mode=generation.reasoning_mode,
                 assistant_message=message_dto(assistant_message),
                 error_code=generation.error_code,
                 error_message=generation.error_message,
@@ -529,13 +553,32 @@ class ChatCoordinator:
         if not self._catalog.contains(model_id):
             raise AppError(404, "MODEL_NOT_FOUND", "Model not found")
 
+    def _require_reasoning(self, model_id: str, reasoning_mode: str) -> None:
+        if not self._catalog.supports_reasoning(model_id, reasoning_mode):
+            raise AppError(
+                400,
+                "VALIDATION_ERROR",
+                "Reasoning mode is not supported by this model",
+                {
+                    "fields": [
+                        {
+                            "path": "body.reasoning_mode",
+                            "message": "Reasoning mode is not supported",
+                        }
+                    ]
+                },
+            )
+
     @staticmethod
-    def _fingerprint(request: ChatStreamRequest, model_id: str) -> str:
+    def _fingerprint(
+        request: ChatStreamRequest, model_id: str, reasoning_mode: str
+    ) -> str:
         return request_fingerprint(
             {
                 "client_message_id": str(request.client_message_id),
                 "session_id": str(request.session_id) if request.session_id else None,
                 "model_id": model_id,
+                "reasoning_mode": reasoning_mode,
                 # Keep the original V1 fingerprint normalization so requests created before
                 # Markdown whitespace preservation remain safely retryable after deployment.
                 "content": request.content.strip(),

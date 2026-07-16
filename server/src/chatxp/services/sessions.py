@@ -141,14 +141,26 @@ class SessionService:
                     request.model_id
                 ):
                     raise AppError(
+                        404,
+                        "MODEL_NOT_FOUND",
+                        "Model not found",
+                    )
+                effective_model = request.model_id or chat_session.model_id
+                effective_reasoning = (
+                    request.reasoning_mode or chat_session.reasoning_mode
+                )
+                if not self._model_catalog.supports_reasoning(
+                    effective_model, effective_reasoning
+                ):
+                    raise AppError(
                         400,
                         "VALIDATION_ERROR",
-                        "Unknown model",
+                        "Reasoning mode is not supported by this model",
                         {
                             "fields": [
                                 {
-                                    "path": "body.model_id",
-                                    "message": "Model does not exist",
+                                    "path": "body.reasoning_mode",
+                                    "message": "Reasoning mode is not supported",
                                 }
                             ]
                         },
@@ -157,6 +169,8 @@ class SessionService:
                     chat_session.title = request.title
                 if request.model_id is not None:
                     chat_session.model_id = request.model_id
+                if request.reasoning_mode is not None:
+                    chat_session.reasoning_mode = request.reasoning_mode
                 if request.is_pinned is not None:
                     chat_session.is_pinned = request.is_pinned
                 chat_session.updated_at = utcnow()

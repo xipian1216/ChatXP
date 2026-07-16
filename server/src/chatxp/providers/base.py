@@ -45,6 +45,8 @@ class ProviderUnavailableError(RuntimeError):
 
 class ChatProvider(Protocol):
     def stream_chat(
-        self, provider_model: str, messages: Sequence[ProviderMessage]
+        self,
+        provider_model: str,
+        reasoning_mode: str,
+        messages: Sequence[ProviderMessage],
     ) -> AsyncIterator[ProviderEvent]: ...
-

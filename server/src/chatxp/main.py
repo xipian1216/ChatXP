@@ -51,7 +51,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         app.state.session_factory = session_factory
         app.state.model_catalog = catalog
-        app.state.auth_service = AuthService(session_factory, application_settings)
+        auth_service = AuthService(session_factory, application_settings)
+        await auth_service.ensure_default_admin()
+        app.state.auth_service = auth_service
         app.state.session_service = SessionService(
             session_factory, application_settings.token_hash_secret, catalog
         )

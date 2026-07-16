@@ -70,8 +70,8 @@ async def test_update_session_fields_validation_and_user_isolation(
         {"title": "x" * 101},
         {"title": None},
         {"model_id": None},
+        {"reasoning_mode": None},
         {"is_pinned": None},
-        {"model_id": "unknown-model"},
     ]
     for payload in invalid_payloads:
         response = await client.patch(
@@ -79,6 +79,14 @@ async def test_update_session_fields_validation_and_user_isolation(
         )
         assert response.status_code == 400, (payload, response.text)
         assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+    unknown_model = await client.patch(
+        f"/api/v1/sessions/{first_id}",
+        json={"model_id": "unknown-model"},
+        headers=first_headers,
+    )
+    assert unknown_model.status_code == 404
+    assert unknown_model.json()["error"]["code"] == "MODEL_NOT_FOUND"
 
     second_auth, _ = await authenticate(client)
     second_headers = bearer(second_auth)
@@ -155,7 +163,8 @@ async def test_delete_empty_session(app_client: tuple[Any, httpx.AsyncClient]) -
                 id=session_id,
                 user_id=auth["user_id"],
                 title="empty",
-                model_id="chat-default",
+                model_id="chat-5.5",
+                reasoning_mode="standard",
                 is_pinned=False,
                 created_at=now,
                 updated_at=now,
@@ -176,14 +185,14 @@ async def multi_model_client(
     settings = make_test_settings(tmp_path / "multi-model.db")
     settings.ai_models_json = [
         ProviderModelConfig(
-            id="chat-default",
+            id="chat-5.5",
             provider_model="deepseek-v4-flash",
-            display_name="Default",
+            display_name="5.5",
         ),
         ProviderModelConfig(
-            id="chat-fast",
-            provider_model="deepseek-v4-flash",
-            display_name="Fast",
+            id="chat-5.6",
+            provider_model="deepseek-v4-pro",
+            display_name="5.6",
         ),
     ]
     app = create_app(settings)
@@ -206,11 +215,12 @@ async def test_model_switch_only_changes_future_generations(
 
     switched = await client.patch(
         f"/api/v1/sessions/{session_id}",
-        json={"model_id": "chat-fast"},
+        json={"model_id": "chat-5.6", "reasoning_mode": "advanced"},
         headers=bearer(auth),
     )
     assert switched.status_code == 200, switched.text
-    assert switched.json()["data"]["model_id"] == "chat-fast"
+    assert switched.json()["data"]["model_id"] == "chat-5.6"
+    assert switched.json()["data"]["reasoning_mode"] == "advanced"
 
     async with app.state.session_factory() as db:
         generation = await db.scalar(
@@ -222,16 +232,20 @@ async def test_model_switch_only_changes_future_generations(
             )
         )
     assert generation is not None
-    assert generation.model_id == "chat-default"
+    assert generation.model_id == "chat-5.5"
+    assert generation.reasoning_mode == "standard"
     assert assistant is not None
-    assert assistant.model_id == "chat-default"
+    assert assistant.model_id == "chat-5.5"
+    assert assistant.reasoning_mode == "standard"
 
     follow_up = {
         **chat_payload("future generation"),
         "session_id": session_id,
         "model_id": None,
+        "reasoning_mode": None,
     }
     next_context = await app.state.chat_coordinator.prepare(
         auth["user_id"], ChatStreamRequest.model_validate(follow_up)
     )
-    assert next_context.generation.assistant_message.model_id == "chat-fast"
+    assert next_context.generation.assistant_message.model_id == "chat-5.6"
+    assert next_context.generation.assistant_message.reasoning_mode == "advanced"

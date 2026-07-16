@@ -10,6 +10,7 @@ def session_dto(
         id=session.id,
         title=session.title,
         model_id=session.model_id,
+        reasoning_mode=session.reasoning_mode,
         is_pinned=session.is_pinned,
         last_message_preview=preview(last_content),
         message_count=message_count,
@@ -27,6 +28,7 @@ def message_dto(message: Message) -> MessageDto:
         status=message.status,
         sequence=message.sequence,
         model_id=message.model_id,
+        reasoning_mode=message.reasoning_mode,
         client_message_id=message.client_message_id,
         error_code=message.error_code,
         prompt_tokens=message.prompt_tokens,
@@ -34,4 +36,3 @@ def message_dto(message: Message) -> MessageDto:
         created_at=ensure_utc(message.created_at),
         updated_at=ensure_utc(message.updated_at),
     )
-

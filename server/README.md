@@ -14,8 +14,9 @@ The server listens on `0.0.0.0:8000` by default so a phone on the same LAN can c
 Override the address with `CHATXP_HOST` and `CHATXP_PORT`, or enable development reload
 with `./run.sh --reload`.
 
-The public `chat-default` model is displayed as `5.5 均衡` and maps internally to
-`deepseek-v4-flash`; provider model names are never exposed through the client contract.
+The public `chat-5.5` and `chat-5.6` aliases map internally to DeepSeek V4 Flash and Pro.
+Both support `standard` and `advanced` reasoning modes; provider model names and thinking
+parameters are never exposed through the client contract.
 The default `fake` provider replies with `Echo: <last user message>`, so local development
 does not require external credentials. To use the real OpenAI-compatible service, set
 `CHATXP_CHAT_PROVIDER=openai`, `AI_BASE_URL`, `AI_API_KEY`, and the model
@@ -24,6 +25,18 @@ catalog variables from `.env.example`. `AI_BASE_URL` is the API root immediately
 
 The application runs Alembic migrations before it reports ready. Only one Uvicorn worker
 and one service instance may use the SQLite database.
+
+## Accounts
+
+Guests can register without losing their existing conversations, or log in to an existing
+account and merge their guest conversations. Identity is bound to each installation, so
+logging out only affects the current device. The account endpoints are `GET /api/v1/auth/me`
+and `POST /api/v1/auth/register`, `/login`, and `/logout`.
+
+On startup the server idempotently creates the bootstrap registered account `admin@123.com`
+with password `123456`. Override `CHATXP_DEFAULT_ADMIN_USERNAME` and
+`CHATXP_DEFAULT_ADMIN_PASSWORD` before exposing the service outside a trusted development
+network.
 
 ## Commands
 

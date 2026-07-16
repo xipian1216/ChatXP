@@ -31,13 +31,19 @@ class OpenAICompatibleProvider:
         self._transport = transport
 
     async def stream_chat(
-        self, provider_model: str, messages: Sequence[ProviderMessage]
+        self,
+        provider_model: str,
+        reasoning_mode: str,
+        messages: Sequence[ProviderMessage],
     ) -> AsyncIterator[ProviderEvent]:
         payload = {
             "model": provider_model,
             "messages": [{"role": item.role, "content": item.content} for item in messages],
             "stream": True,
             "stream_options": {"include_usage": True},
+            "thinking": {
+                "type": "enabled" if reasoning_mode == "advanced" else "disabled"
+            },
         }
         finish_reason = "stop"
         usage: ProviderUsage | None = None

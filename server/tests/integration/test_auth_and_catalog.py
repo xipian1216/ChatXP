@@ -20,10 +20,14 @@ async def test_anonymous_recovery_refresh_rotation_and_catalog(
 
     models = await client.get("/api/v1/models", headers=bearer(first))
     assert models.status_code == 200
-    model = models.json()["data"]["items"][0]
-    assert model["id"] == "chat-default"
-    assert model["display_name"] == "5.5 均衡"
-    assert model["is_default"] is True
+    catalog = models.json()["data"]["items"]
+    assert [model["id"] for model in catalog] == ["chat-5.5", "chat-5.6"]
+    assert [model["display_name"] for model in catalog] == ["5.5", "5.6"]
+    assert [model["is_default"] for model in catalog] == [True, False]
+    assert all(
+        model["capabilities"]["reasoning_modes"] == ["standard", "advanced"]
+        for model in catalog
+    )
     assert "provider_model" not in models.text
 
     refreshed = await client.post(

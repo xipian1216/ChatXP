@@ -14,7 +14,7 @@ def _session_update_json_schema(schema: dict[str, Any]) -> None:
     properties = schema.get("properties", {})
     if not isinstance(properties, dict):
         return
-    for field_name in ("title", "model_id", "is_pinned"):
+    for field_name in ("title", "model_id", "reasoning_mode", "is_pinned"):
         field_schema = properties.get(field_name)
         if not isinstance(field_schema, dict):
             continue
@@ -49,12 +49,18 @@ class GenerationStatus(StrEnum):
     FAILED = "failed"
 
 
+class ReasoningMode(StrEnum):
+    STANDARD = "standard"
+    ADVANCED = "advanced"
+
+
 class SessionDto(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     title: str
     model_id: str
+    reasoning_mode: ReasoningMode
     is_pinned: bool
     last_message_preview: str | None
     message_count: int
@@ -72,6 +78,7 @@ class MessageDto(BaseModel):
     status: MessageStatus
     sequence: int
     model_id: str | None
+    reasoning_mode: ReasoningMode | None
     client_message_id: UUID | None
     error_code: str | None
     prompt_tokens: int | None
@@ -97,6 +104,7 @@ class SessionUpdateRequest(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=100)
     model_id: str | None = Field(default=None, min_length=1, max_length=100)
+    reasoning_mode: ReasoningMode | None = None
     is_pinned: bool | None = None
 
     @model_validator(mode="before")
@@ -104,7 +112,7 @@ class SessionUpdateRequest(BaseModel):
     def validate_patch_fields(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
-        fields = {"title", "model_id", "is_pinned"}
+        fields = {"title", "model_id", "reasoning_mode", "is_pinned"}
         provided = fields.intersection(value)
         if not provided:
             raise ValueError("At least one field must be provided")
@@ -123,6 +131,7 @@ class ChatStreamRequest(BaseModel):
     client_message_id: UUID
     session_id: UUID | None = None
     model_id: str | None = Field(default=None, min_length=1, max_length=100)
+    reasoning_mode: ReasoningMode | None = None
     content: str = Field(min_length=1, max_length=20_000)
 
     @field_validator("content")
@@ -150,6 +159,7 @@ class GenerationDto(BaseModel):
     status: GenerationStatus
     session_id: UUID
     user_message_id: UUID
+    reasoning_mode: ReasoningMode
     assistant_message: MessageDto
     error_code: str | None
     error_message: str | None

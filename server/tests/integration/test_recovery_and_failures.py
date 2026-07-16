@@ -26,9 +26,12 @@ from tests.integration.test_chat import chat_payload
 
 class PartialFailureProvider:
     async def stream_chat(
-        self, provider_model: str, messages: Sequence[ProviderMessage]
+        self,
+        provider_model: str,
+        reasoning_mode: str,
+        messages: Sequence[ProviderMessage],
     ) -> AsyncIterator[ProviderEvent]:
-        del provider_model, messages
+        del provider_model, reasoning_mode, messages
         yield ProviderDelta("```python\npartial")
         raise ProviderUnavailableError("test failure")
 

@@ -5,7 +5,15 @@ import binascii
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+class AuthUser(BaseModel):
+    id: UUID
+    account_type: Literal["guest", "registered"]
+    display_name: str | None
+    email: str | None
+    avatar_text: str | None
 
 
 class AnonymousAuthRequest(BaseModel):
@@ -34,8 +42,30 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=32, max_length=512)
 
 
+class RegisterRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=30)
+    email: EmailStr = Field(max_length=320)
+    password: str = Field(min_length=8, max_length=72)
+
+    @field_validator("display_name", "email", mode="before")
+    @classmethod
+    def normalize_identity_fields(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=1, max_length=72)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
 class TokenResponse(BaseModel):
     user_id: UUID
+    user: AuthUser
     access_token: str
     token_type: Literal["Bearer"] = "Bearer"
     expires_in: int

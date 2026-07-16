@@ -17,12 +17,16 @@ class FakeChatProvider:
         self.chunk_size = chunk_size
         self.delay_seconds = delay_seconds
         self.call_count = 0
+        self.calls: list[tuple[str, str]] = []
 
     async def stream_chat(
-        self, provider_model: str, messages: Sequence[ProviderMessage]
+        self,
+        provider_model: str,
+        reasoning_mode: str,
+        messages: Sequence[ProviderMessage],
     ) -> AsyncIterator[ProviderEvent]:
-        del provider_model
         self.call_count += 1
+        self.calls.append((provider_model, reasoning_mode))
         last_user = next((item.content for item in reversed(messages) if item.role == "user"), "")
         response = f"Echo: {last_user}"
         for offset in range(0, len(response), self.chunk_size):
@@ -36,4 +40,3 @@ class FakeChatProvider:
                 completion_tokens=max(1, len(response) // 4),
             ),
         )
-

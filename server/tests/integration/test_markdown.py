@@ -48,9 +48,12 @@ class MarkdownProvider:
         self.received_messages: list[ProviderMessage] = []
 
     async def stream_chat(
-        self, provider_model: str, messages: Sequence[ProviderMessage]
+        self,
+        provider_model: str,
+        reasoning_mode: str,
+        messages: Sequence[ProviderMessage],
     ) -> AsyncIterator[ProviderEvent]:
-        del provider_model
+        del provider_model, reasoning_mode
         self.call_count += 1
         self.received_messages = list(messages)
         for chunk in MARKDOWN_RESPONSE_CHUNKS:

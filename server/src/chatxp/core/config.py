@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,18 +32,28 @@ class Settings(BaseSettings):
     )
     access_token_ttl_seconds: int = Field(default=3600, gt=0)
     refresh_token_ttl_seconds: int = Field(default=7_776_000, gt=0)
+    default_admin_username: str = Field(
+        default="admin@123.com", min_length=1, max_length=30
+    )
+    default_admin_password: str = Field(default="123456", min_length=1, max_length=72)
     ai_default_model: str = Field(
-        default="chat-default",
+        default="chat-5.5",
         validation_alias=AliasChoices("AI_DEFAULT_MODEL", "CHATXP_AI_DEFAULT_MODEL"),
     )
     ai_models_json: list[ProviderModelConfig] = Field(
         default_factory=lambda: [
             ProviderModelConfig(
-                id="chat-default",
+                id="chat-5.5",
                 provider_model="deepseek-v4-flash",
-                display_name="5.5 均衡",
-                description="适合日常问答与通用任务",
-            )
+                display_name="5.5",
+                description="适合日常对话的 Flash 模型",
+            ),
+            ProviderModelConfig(
+                id="chat-5.6",
+                provider_model="deepseek-v4-pro",
+                display_name="5.6",
+                description="适合复杂任务的 Pro 模型",
+            ),
         ],
         validation_alias=AliasChoices("AI_MODELS_JSON", "CHATXP_AI_MODELS_JSON"),
     )
@@ -56,13 +66,44 @@ class Settings(BaseSettings):
     )
     log_level: str = "INFO"
 
+    @field_validator("default_admin_username")
+    @classmethod
+    def normalize_default_admin_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("CHATXP_DEFAULT_ADMIN_USERNAME must not be blank")
+        return normalized
+
     @model_validator(mode="after")
     def validate_model_catalog(self) -> Settings:
+        if len(self.ai_models_json) == 1 and self.ai_models_json[0].id == "chat-default":
+            legacy = self.ai_models_json[0]
+            self.ai_models_json = [
+                legacy.model_copy(
+                    update={
+                        "id": "chat-5.5",
+                        "display_name": "5.5",
+                        "description": "适合日常对话的 Flash 模型",
+                    }
+                ),
+                ProviderModelConfig(
+                    id="chat-5.6",
+                    provider_model="deepseek-v4-pro",
+                    display_name="5.6",
+                    description="适合复杂任务的 Pro 模型",
+                ),
+            ]
+            if self.ai_default_model == "chat-default":
+                self.ai_default_model = "chat-5.5"
         ids = [item.id for item in self.ai_models_json]
         if len(ids) != len(set(ids)):
             raise ValueError("AI model ids must be unique")
         if self.ai_default_model not in ids:
             raise ValueError("AI_DEFAULT_MODEL must reference an AI_MODELS_JSON id")
+        if self.ai_default_model != "chat-5.5":
+            raise ValueError("AI_DEFAULT_MODEL must be chat-5.5")
+        if not {"chat-5.5", "chat-5.6"}.issubset(ids):
+            raise ValueError("AI_MODELS_JSON must contain chat-5.5 and chat-5.6")
         if self.chat_provider == "openai" and (not self.ai_base_url or not self.ai_api_key):
             raise ValueError("AI_BASE_URL and AI_API_KEY are required for the openai provider")
         return self

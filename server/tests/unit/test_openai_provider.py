@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import httpx
+import pytest
 
 from chatxp.providers.base import ProviderDelta, ProviderDone, ProviderMessage
 from chatxp.providers.openai_compatible import OpenAICompatibleProvider
@@ -58,7 +59,9 @@ async def test_provider_preserves_markdown_across_utf8_byte_chunks() -> None:
     events = [
         event
         async for event in provider.stream_chat(
-            "deepseek-v4-flash", [ProviderMessage("user", "返回 Markdown")]
+            "deepseek-v4-flash",
+            "standard",
+            [ProviderMessage("user", "返回 Markdown")],
         )
     ]
 
@@ -69,3 +72,48 @@ async def test_provider_preserves_markdown_across_utf8_byte_chunks() -> None:
     assert isinstance(events[-1], ProviderDone)
     assert events[-1].usage is not None
     assert events[-1].usage.total_tokens == 8
+
+
+@pytest.mark.parametrize(
+    ("reasoning_mode", "thinking_type"),
+    [("standard", "disabled"), ("advanced", "enabled")],
+)
+async def test_provider_maps_reasoning_mode_to_deepseek_thinking_toggle(
+    reasoning_mode: str, thinking_type: str
+) -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        body = (
+            'data: {"choices":[{"delta":{"reasoning_content":"private chain"},'
+            '"finish_reason":null}]}\n\n'
+            'data: {"choices":[{"delta":{"content":"final answer"},'
+            '"finish_reason":"stop"}]}\n\n'
+            "data: [DONE]\n\n"
+        )
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content=body.encode(),
+        )
+
+    provider = OpenAICompatibleProvider(
+        "https://provider.example/v1",
+        "test-key",
+        transport=httpx.MockTransport(handler),
+    )
+    events = [
+        event
+        async for event in provider.stream_chat(
+            "deepseek-v4-pro",
+            reasoning_mode,
+            [ProviderMessage("user", "hello")],
+        )
+    ]
+    assert captured["model"] == "deepseek-v4-pro"
+    assert captured["thinking"] == {"type": thinking_type}
+    assert [event.content for event in events if isinstance(event, ProviderDelta)] == [
+        "final answer"
+    ]
+    assert isinstance(events[-1], ProviderDone)

@@ -14,7 +14,8 @@ def chat_payload(content: str = "帮我制定学习计划") -> dict[str, Any]:
         "client_request_id": str(uuid4()),
         "client_message_id": str(uuid4()),
         "session_id": None,
-        "model_id": "chat-default",
+        "model_id": "chat-5.5",
+        "reasoning_mode": "standard",
         "content": content,
     }
 

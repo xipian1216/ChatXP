@@ -14,6 +14,9 @@ class ModelCatalog:
         item = self._models.get(model_id)
         return item.provider_model if item else None
 
+    def supports_reasoning(self, model_id: str, reasoning_mode: str) -> bool:
+        return model_id in self._models and reasoning_mode in {"standard", "advanced"}
+
     def public_models(self) -> ModelListData:
         return ModelListData(
             items=[
@@ -27,4 +30,3 @@ class ModelCatalog:
                 for item in self._models.values()
             ]
         )
-

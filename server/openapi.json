@@ -35,6 +35,65 @@
         "title": "AnonymousAuthRequest",
         "type": "object"
       },
+      "AuthUser": {
+        "properties": {
+          "account_type": {
+            "enum": [
+              "guest",
+              "registered"
+            ],
+            "title": "Account Type",
+            "type": "string"
+          },
+          "avatar_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Text"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "account_type",
+          "display_name",
+          "email",
+          "avatar_text"
+        ],
+        "title": "AuthUser",
+        "type": "object"
+      },
       "ChatStreamRequest": {
         "properties": {
           "client_message_id": {
@@ -66,6 +125,16 @@
             ],
             "title": "Model Id"
           },
+          "reasoning_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "session_id": {
             "anyOf": [
               {
@@ -85,6 +154,18 @@
           "content"
         ],
         "title": "ChatStreamRequest",
+        "type": "object"
+      },
+      "DataEnvelope_AuthUser_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthUser"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataEnvelope[AuthUser]",
         "type": "object"
       },
       "DataEnvelope_GenerationDto_": {
@@ -242,6 +323,9 @@
             "title": "Id",
             "type": "string"
           },
+          "reasoning_mode": {
+            "$ref": "#/components/schemas/ReasoningMode"
+          },
           "session_id": {
             "format": "uuid",
             "title": "Session Id",
@@ -267,6 +351,7 @@
           "status",
           "session_id",
           "user_message_id",
+          "reasoning_mode",
           "assistant_message",
           "error_code",
           "error_message",
@@ -297,6 +382,28 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 72,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
         "type": "object"
       },
       "MessageDto": {
@@ -371,6 +478,16 @@
             ],
             "title": "Prompt Tokens"
           },
+          "reasoning_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "role": {
             "$ref": "#/components/schemas/MessageRole"
           },
@@ -400,6 +517,7 @@
           "status",
           "sequence",
           "model_id",
+          "reasoning_mode",
           "client_message_id",
           "error_code",
           "prompt_tokens",
@@ -467,6 +585,17 @@
             "title": "Attachments",
             "type": "boolean"
           },
+          "reasoning_modes": {
+            "items": {
+              "enum": [
+                "standard",
+                "advanced"
+              ],
+              "type": "string"
+            },
+            "title": "Reasoning Modes",
+            "type": "array"
+          },
           "streaming": {
             "default": true,
             "title": "Streaming",
@@ -531,6 +660,14 @@
         "title": "ModelOption",
         "type": "object"
       },
+      "ReasoningMode": {
+        "enum": [
+          "standard",
+          "advanced"
+        ],
+        "title": "ReasoningMode",
+        "type": "string"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -544,6 +681,35 @@
           "refresh_token"
         ],
         "title": "RefreshRequest",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "display_name": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 72,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "email",
+          "password"
+        ],
+        "title": "RegisterRequest",
         "type": "object"
       },
       "SessionDto": {
@@ -581,6 +747,9 @@
             "title": "Model Id",
             "type": "string"
           },
+          "reasoning_mode": {
+            "$ref": "#/components/schemas/ReasoningMode"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -595,6 +764,7 @@
           "id",
           "title",
           "model_id",
+          "reasoning_mode",
           "is_pinned",
           "last_message_preview",
           "message_count",
@@ -651,6 +821,9 @@
             "title": "Model Id",
             "type": "string"
           },
+          "reasoning_mode": {
+            "$ref": "#/components/schemas/ReasoningMode"
+          },
           "title": {
             "maxLength": 100,
             "minLength": 1,
@@ -685,6 +858,9 @@
             "title": "Token Type",
             "type": "string"
           },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
           "user_id": {
             "format": "uuid",
             "title": "User Id",
@@ -693,6 +869,7 @@
         },
         "required": [
           "user_id",
+          "user",
           "access_token",
           "expires_in",
           "refresh_token",
@@ -850,6 +1027,343 @@
         ]
       }
     },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login_api_v1_auth_login_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataEnvelope_TokenResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_api_v1_auth_logout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataEnvelope_TokenResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "current_user_api_v1_auth_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataEnvelope_AuthUser_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Current User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/refresh": {
       "post": {
         "operationId": "refresh_auth_api_v1_auth_refresh_post",
@@ -946,6 +1460,125 @@
           }
         },
         "summary": "Refresh Auth",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register_api_v1_auth_register_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataEnvelope_TokenResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Register",
         "tags": [
           "auth"
         ]
