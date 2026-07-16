@@ -14,6 +14,7 @@ import com.xipian.chatxp_android.data.remote.dto.ChatStreamRequestDto
 import com.xipian.chatxp_android.data.remote.dto.ErrorEnvelopeDto
 import com.xipian.chatxp_android.data.remote.dto.MessageDto
 import com.xipian.chatxp_android.data.remote.dto.SessionDto
+import com.xipian.chatxp_android.data.remote.dto.SessionUpdateRequestDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
@@ -21,12 +22,18 @@ import retrofit2.HttpException
 interface ChatDataRepository {
     suspend fun models(): List<ChatModel>
     suspend fun sessions(query: String? = null): List<ChatSessionModel>
+    suspend fun updateSession(
+        sessionId: String,
+        modelId: String? = null,
+        reasoningMode: String? = null
+    ): ChatSessionModel
     suspend fun messages(sessionId: String): List<ChatMessageModel>
     fun streamMessage(
         clientRequestId: String,
         clientMessageId: String,
         sessionId: String?,
         modelId: String?,
+        reasoningMode: String?,
         content: String
     ): Flow<ChatStreamEvent>
     suspend fun generation(clientRequestId: String): GenerationModel
@@ -39,12 +46,29 @@ class ChatRepository(
 ) : ChatDataRepository {
     override suspend fun models(): List<ChatModel> = apiCall {
         api.models().data.items.map {
-            ChatModel(it.id, it.displayName, it.description, it.isDefault)
+            ChatModel(
+                id = it.id,
+                displayName = it.displayName,
+                description = it.description,
+                isDefault = it.isDefault,
+                reasoningModes = it.capabilities.reasoningModes
+            )
         }
     }
 
     override suspend fun sessions(query: String?): List<ChatSessionModel> = apiCall {
         api.sessions(query = query?.takeIf(String::isNotBlank)).data.items.map(SessionDto::toModel)
+    }
+
+    override suspend fun updateSession(
+        sessionId: String,
+        modelId: String?,
+        reasoningMode: String?
+    ): ChatSessionModel = apiCall {
+        api.updateSession(
+            sessionId = sessionId,
+            body = SessionUpdateRequestDto(modelId = modelId, reasoningMode = reasoningMode)
+        ).data.toModel()
     }
 
     override suspend fun messages(sessionId: String): List<ChatMessageModel> = apiCall {
@@ -56,6 +80,7 @@ class ChatRepository(
         clientMessageId: String,
         sessionId: String?,
         modelId: String?,
+        reasoningMode: String?,
         content: String
     ): Flow<ChatStreamEvent> = streamClient.stream(
         ChatStreamRequestDto(
@@ -63,6 +88,7 @@ class ChatRepository(
             clientMessageId = clientMessageId,
             sessionId = sessionId,
             modelId = modelId,
+            reasoningMode = reasoningMode,
             content = content
         )
     )
@@ -74,6 +100,8 @@ class ChatRepository(
                 status = it.status,
                 sessionId = it.sessionId,
                 assistantMessage = it.assistantMessage.toModel(),
+                modelId = it.assistantMessage.modelId,
+                reasoningMode = it.reasoningMode,
                 errorCode = it.errorCode
             )
         }
@@ -100,6 +128,7 @@ fun SessionDto.toModel() = ChatSessionModel(
     id = id,
     title = title,
     modelId = modelId,
+    reasoningMode = reasoningMode,
     isPinned = isPinned,
     messagePreview = lastMessagePreview,
     messageCount = messageCount,
@@ -117,5 +146,7 @@ fun MessageDto.toModel() = ChatMessageModel(
         else -> MessageStatus.COMPLETED
     },
     sequence = sequence,
+    modelId = modelId,
+    reasoningMode = reasoningMode,
     errorCode = errorCode
 )

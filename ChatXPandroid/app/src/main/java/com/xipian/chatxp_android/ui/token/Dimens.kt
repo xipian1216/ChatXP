@@ -19,6 +19,10 @@ val AppBarHeight: Dp = 60.dp
 val AppBarHorizontalPadding: Dp = 12.dp
 val AppBarActionAreaWidth: Dp = 104.dp
 val AppBarModelButtonMinHeight: Dp = 40.dp
+val ModelMenuWidth: Dp = 216.dp
+val ModelMenuPadding: Dp = 8.dp
+val ModelMenuSectionPadding: Dp = 12.dp
+val ModelMenuOptionMinHeight: Dp = 44.dp
 
 val IconButtonSize: Dp = 48.dp
 val IconSize: Dp = 22.dp

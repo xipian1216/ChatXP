@@ -84,6 +84,11 @@ private class FakeChatRepository(
     )
 
     override suspend fun sessions(query: String?): List<ChatSessionModel> = emptyList()
+    override suspend fun updateSession(
+        sessionId: String,
+        modelId: String?,
+        reasoningMode: String?
+    ): ChatSessionModel = error("Not used")
     override suspend fun messages(sessionId: String): List<ChatMessageModel> = emptyList()
 
     override fun streamMessage(
@@ -91,6 +96,7 @@ private class FakeChatRepository(
         clientMessageId: String,
         sessionId: String?,
         modelId: String?,
+        reasoningMode: String?,
         content: String
     ): Flow<ChatStreamEvent> {
         val sessionDto = sessionDto(lastMessagePreview = "Echo: $content")

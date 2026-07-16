@@ -54,7 +54,9 @@ data class ModelDto(
 @Serializable
 data class ModelCapabilitiesDto(
     val streaming: Boolean,
-    val attachments: Boolean
+    val attachments: Boolean,
+    @SerialName("reasoning_modes")
+    val reasoningModes: List<String> = listOf("standard")
 )
 
 @Serializable
@@ -69,6 +71,7 @@ data class SessionDto(
     val id: String,
     val title: String,
     @SerialName("model_id") val modelId: String,
+    @SerialName("reasoning_mode") val reasoningMode: String = "standard",
     @SerialName("is_pinned") val isPinned: Boolean,
     @SerialName("last_message_preview") val lastMessagePreview: String?,
     @SerialName("message_count") val messageCount: Int,
@@ -92,6 +95,7 @@ data class MessageDto(
     val status: String,
     val sequence: Int,
     @SerialName("model_id") val modelId: String?,
+    @SerialName("reasoning_mode") val reasoningMode: String? = null,
     @SerialName("client_message_id") val clientMessageId: String?,
     @SerialName("error_code") val errorCode: String?,
     @SerialName("prompt_tokens") val promptTokens: Int?,
@@ -106,7 +110,14 @@ data class ChatStreamRequestDto(
     @SerialName("client_message_id") val clientMessageId: String,
     @SerialName("session_id") val sessionId: String?,
     @SerialName("model_id") val modelId: String?,
+    @SerialName("reasoning_mode") val reasoningMode: String? = null,
     val content: String
+)
+
+@Serializable
+data class SessionUpdateRequestDto(
+    @SerialName("model_id") val modelId: String? = null,
+    @SerialName("reasoning_mode") val reasoningMode: String? = null
 )
 
 @Serializable
@@ -157,6 +168,7 @@ data class GenerationDto(
     @SerialName("session_id") val sessionId: String,
     @SerialName("user_message_id") val userMessageId: String,
     @SerialName("assistant_message") val assistantMessage: MessageDto,
+    @SerialName("reasoning_mode") val reasoningMode: String = "standard",
     @SerialName("error_code") val errorCode: String?,
     @SerialName("error_message") val errorMessage: String?,
     @SerialName("created_at") val createdAt: String,

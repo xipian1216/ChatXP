@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.xipian.chatxp_android.R
+import com.xipian.chatxp_android.data.model.DEFAULT_MODEL_ID
 import com.xipian.chatxp_android.ui.screens.chat.component.ChatComposer
 import com.xipian.chatxp_android.ui.screens.chat.component.ChatTopBar
 import com.xipian.chatxp_android.ui.screens.chat.component.DrawerEdgeSwipeArea
@@ -32,6 +33,37 @@ fun ChatScreen(
 ) {
     BackHandler(enabled = uiState.isDrawerOpen) { onAction(ChatAction.CloseDrawer) }
     val localizedError = uiState.error?.let { stringResource(it.messageRes) }
+    val fallbackModelName = stringResource(R.string.model_fallback_55)
+    val fallbackModelOptions = listOf(
+        ModelOption(
+            id = DEFAULT_MODEL_ID,
+            displayName = fallbackModelName,
+            reasoningModes = ReasoningModeUi.entries.toSet(),
+            isDefault = true
+        ),
+        ModelOption(
+            id = "chat-5.6",
+            displayName = stringResource(R.string.model_fallback_56),
+            reasoningModes = ReasoningModeUi.entries.toSet()
+        )
+    )
+    val modelOptions = fallbackModelOptions.map { fallback ->
+        val stateOption = uiState.modelOptions.firstOrNull { it.id == fallback.id }
+        fallback.copy(isDefault = stateOption?.isDefault ?: fallback.isDefault)
+    }
+    val modelName = modelOptions
+        .firstOrNull { it.id == uiState.selectedModelId }
+        ?.displayName
+        ?: fallbackModelName
+    val reasoningLabel = stringResource(uiState.selectedReasoningMode.labelRes)
+    val modelButtonLabel = stringResource(
+        R.string.model_button_label,
+        modelName,
+        reasoningLabel
+    )
+    val modelConfigErrorText = uiState.modelConfigError
+        ?.takeIf { uiState.isModelCatalogLoaded }
+        ?.let { stringResource(R.string.model_menu_update_failed) }
     val replyingText = stringResource(R.string.chat_replying)
     val visibleMessages = uiState.messages.map { message ->
         when {
@@ -64,11 +96,21 @@ fun ChatScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatTopBar(
-                modelName = uiState.modelName.ifEmpty {
-                    stringResource(R.string.chat_model_name)
-                },
+                modelName = modelButtonLabel,
+                modelOptions = modelOptions,
+                selectedModelId = uiState.selectedModelId,
+                selectedReasoningMode = uiState.selectedReasoningMode,
+                isModelCatalogLoaded = uiState.isModelCatalogLoaded,
+                isModelMenuOpen = uiState.isModelMenuOpen,
+                isModelConfigUpdating = uiState.isModelConfigUpdating,
+                modelConfigErrorText = modelConfigErrorText,
                 onMenuClick = { onAction(ChatAction.OpenDrawer) },
                 onModelClick = { onAction(ChatAction.ModelClick) },
+                onModelMenuDismiss = { onAction(ChatAction.DismissModelMenu) },
+                onModelSelected = { onAction(ChatAction.SelectModel(it)) },
+                onReasoningModeSelected = {
+                    onAction(ChatAction.SelectReasoningMode(it))
+                },
                 onNewChatClick = { onAction(ChatAction.NewChat) },
                 onMoreClick = { onAction(ChatAction.MoreClick) }
             )
@@ -118,6 +160,13 @@ fun ChatScreen(
         )
     }
 }
+
+@get:StringRes
+private val ReasoningModeUi.labelRes: Int
+    get() = when (this) {
+        ReasoningModeUi.STANDARD -> R.string.model_reasoning_standard
+        ReasoningModeUi.ADVANCED -> R.string.model_reasoning_advanced
+    }
 
 @get:StringRes
 private val UiError.messageRes: Int

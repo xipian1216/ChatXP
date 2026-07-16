@@ -22,11 +22,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.xipian.chatxp_android.R
+import com.xipian.chatxp_android.ui.screens.chat.ModelOption
+import com.xipian.chatxp_android.ui.screens.chat.ReasoningModeUi
+import com.xipian.chatxp_android.ui.screens.chat.preview.ChatComponentPreview
+import com.xipian.chatxp_android.ui.screens.chat.preview.ChatPreviewFrame
 import com.xipian.chatxp_android.ui.theme.ChatXPandroidTheme
 import com.xipian.chatxp_android.ui.token.AppBarActionAreaWidth
 import com.xipian.chatxp_android.ui.token.AppBarHeight
@@ -41,11 +49,24 @@ import com.xipian.chatxp_android.ui.token.Space2
 fun ChatTopBar(
     modelName: String,
     modifier: Modifier = Modifier,
+    modelOptions: List<ModelOption> = emptyList(),
+    selectedModelId: String = "",
+    selectedReasoningMode: ReasoningModeUi = ReasoningModeUi.STANDARD,
+    isModelCatalogLoaded: Boolean = false,
+    isModelMenuOpen: Boolean = false,
+    isModelConfigUpdating: Boolean = false,
+    modelConfigErrorText: String? = null,
     onMenuClick: () -> Unit = {},
     onModelClick: () -> Unit = {},
+    onModelMenuDismiss: () -> Unit = {},
+    onModelSelected: (String) -> Unit = {},
+    onReasoningModeSelected: (ReasoningModeUi) -> Unit = {},
     onNewChatClick: () -> Unit = {},
     onMoreClick: () -> Unit = {}
 ) {
+    val popupOffsetY = with(LocalDensity.current) {
+        (IconButtonSize + Space1).roundToPx()
+    }
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -69,26 +90,50 @@ fun ChatTopBar(
                     contentDescription = stringResource(R.string.icon_menu),
                     onClick = onMenuClick
                 )
-                Surface(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .height(IconButtonSize)
-                        .clickable(onClick = onModelClick),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Column(
+                Box(modifier = Modifier.weight(1f, fill = false)) {
+                    Surface(
                         modifier = Modifier
-                            .padding(horizontal = Space2, vertical = Space1),
-                        verticalArrangement = Arrangement.Center
+                            .height(IconButtonSize)
+                            .clickable(onClick = onModelClick),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
-                        Text(
-                            text = modelName,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = Space2, vertical = Space1),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = modelName,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (isModelMenuOpen) {
+                        Popup(
+                            alignment = Alignment.TopStart,
+                            offset = IntOffset(0, popupOffsetY),
+                            onDismissRequest = onModelMenuDismiss,
+                            properties = PopupProperties(
+                                focusable = true,
+                                dismissOnBackPress = true,
+                                dismissOnClickOutside = true
+                            )
+                        ) {
+                            ModelConfigMenu(
+                                modelOptions = modelOptions,
+                                selectedModelId = selectedModelId,
+                                selectedReasoningMode = selectedReasoningMode,
+                                isCatalogLoaded = isModelCatalogLoaded,
+                                isUpdating = isModelConfigUpdating,
+                                errorText = modelConfigErrorText,
+                                onModelSelected = onModelSelected,
+                                onReasoningModeSelected = onReasoningModeSelected
+                            )
+                        }
                     }
                 }
             }
@@ -176,6 +221,37 @@ private fun ChatTopBarLightPreview() {
 @Composable
 private fun ChatTopBarDarkPreview() {
     ChatTopBarPreview(darkTheme = true)
+}
+
+@ChatComponentPreview
+@Composable
+private fun ChatTopBarMenuPreview() {
+    ChatPreviewFrame(contentAlignment = Alignment.TopCenter) {
+        ChatTopBar(
+            modelName = stringResource(
+                R.string.model_button_label,
+                stringResource(R.string.model_fallback_55),
+                stringResource(R.string.model_reasoning_standard)
+            ),
+            modelOptions = listOf(
+                ModelOption(
+                    id = "chat-5.5",
+                    displayName = stringResource(R.string.model_fallback_55),
+                    reasoningModes = ReasoningModeUi.entries.toSet(),
+                    isDefault = true
+                ),
+                ModelOption(
+                    id = "chat-5.6",
+                    displayName = stringResource(R.string.model_fallback_56),
+                    reasoningModes = ReasoningModeUi.entries.toSet()
+                )
+            ),
+            selectedModelId = "chat-5.5",
+            selectedReasoningMode = ReasoningModeUi.STANDARD,
+            isModelCatalogLoaded = true,
+            isModelMenuOpen = true
+        )
+    }
 }
 
 @Composable

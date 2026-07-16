@@ -44,7 +44,8 @@ class ChatStreamClientTest {
                 clientRequestId = "request",
                 clientMessageId = "client-message",
                 sessionId = null,
-                modelId = "chat-default",
+                modelId = "chat-5.6",
+                reasoningMode = "advanced",
                 content = "你好"
             )
         ).toList()
@@ -53,6 +54,9 @@ class ChatStreamClientTest {
         assertTrue(events[0] is ChatStreamEvent.Meta)
         assertEquals("你", (events[1] as ChatStreamEvent.Delta).value.contentDelta)
         assertEquals("你好", (events[2] as ChatStreamEvent.Done).value.assistantMessage.content)
+        val requestBody = server.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains("\"model_id\":\"chat-5.6\""))
+        assertTrue(requestBody.contains("\"reasoning_mode\":\"advanced\""))
     }
 
     private companion object {

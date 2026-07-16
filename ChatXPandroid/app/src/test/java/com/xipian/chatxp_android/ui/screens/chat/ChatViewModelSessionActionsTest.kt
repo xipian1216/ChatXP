@@ -62,6 +62,8 @@ class ChatViewModelSessionActionsTest {
         val credentialStore = SessionActionsCredentialStore()
         val viewModel = ChatViewModel(repository, credentialStore)
         advanceUntilIdle()
+        viewModel.onAction(ChatAction.SelectSession("session-1"))
+        advanceUntilIdle()
         viewModel.onAction(ChatAction.OpenDrawer)
         advanceUntilIdle()
 
@@ -110,6 +112,12 @@ private class SessionActionsRepository(
 
     override suspend fun sessions(query: String?): List<ChatSessionModel> = sessions
 
+    override suspend fun updateSession(
+        sessionId: String,
+        modelId: String?,
+        reasoningMode: String?
+    ): ChatSessionModel = error("Not used by session action tests")
+
     override suspend fun messages(sessionId: String): List<ChatMessageModel> = emptyList()
 
     override fun streamMessage(
@@ -117,6 +125,7 @@ private class SessionActionsRepository(
         clientMessageId: String,
         sessionId: String?,
         modelId: String?,
+        reasoningMode: String?,
         content: String
     ): Flow<ChatStreamEvent> = emptyFlow()
 

@@ -1,11 +1,14 @@
 package com.xipian.chatxp_android.ui.screens.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.xipian.chatxp_android.data.local.CredentialStore
 import com.xipian.chatxp_android.data.model.ChatMessageModel
+import com.xipian.chatxp_android.data.model.ChatModel
 import com.xipian.chatxp_android.data.model.ChatSessionModel
+import com.xipian.chatxp_android.data.model.DEFAULT_MODEL_ID
 import com.xipian.chatxp_android.data.model.MessageStatus
 import com.xipian.chatxp_android.data.remote.ApiException
 import com.xipian.chatxp_android.data.remote.ChatStreamEvent
@@ -51,7 +54,7 @@ class ChatViewModel(
             }
             ChatAction.Send -> send()
             ChatAction.OpenDrawer -> {
-                _uiState.update { it.copy(isDrawerOpen = true) }
+                _uiState.update { it.copy(isDrawerOpen = true, isModelMenuOpen = false) }
                 refreshSessions(_uiState.value.searchQuery)
             }
             ChatAction.CloseDrawer -> _uiState.update { it.copy(isDrawerOpen = false) }
@@ -61,8 +64,11 @@ class ChatViewModel(
             is ChatAction.TogglePinSession -> togglePinSession(action.sessionId)
             is ChatAction.DeleteSession -> deleteSession(action.sessionId)
             ChatAction.NewChat -> newChat()
+            ChatAction.ModelClick -> toggleModelMenu()
+            ChatAction.DismissModelMenu -> closeModelMenu()
+            is ChatAction.SelectModel -> selectModel(action.modelId)
+            is ChatAction.SelectReasoningMode -> selectReasoningMode(action.mode)
             ChatAction.Attach,
-            ChatAction.ModelClick,
             ChatAction.MoreClick,
             ChatAction.ProfileClick -> Unit
         }
@@ -70,33 +76,158 @@ class ChatViewModel(
 
     private suspend fun initialize() {
         _uiState.update { it.copy(isInitializing = true, error = null) }
-        runCatching {
-            coroutineScope {
-                val models = async { repository.models() }
-                val sessions = async { repository.sessions() }
-                models.await() to sessions.await()
-            }
-        }.onSuccess { (models, sessions) ->
+        val (modelsResult, sessionsResult) = coroutineScope {
+            val models = async { runCatching { repository.models() } }
+            val sessions = async { runCatching { repository.sessions() } }
+            models.await() to sessions.await()
+        }
+        val models = modelsResult.getOrDefault(emptyList())
+        val sessions = sessionsResult.getOrDefault(emptyList())
+        val modelOptions = models.toUiOptions()
+        val defaultModel = modelOptions.firstOrNull(ModelOption::isDefault)
+            ?: modelOptions.first()
+        val selectedModelId = defaultModel.id
+        val selectedReasoningMode = ReasoningModeUi.STANDARD
+
+        if (sessionsResult.isSuccess) {
             val stored = authStore.read()
             val visibleSessions = applyLocalSessionChanges(sessions.map(ChatSessionModel::toUi))
-            val selected = visibleSessions.firstOrNull {
-                it.sessionId == stored.selectedSessionId
-            } ?: visibleSessions.firstOrNull()
-            val defaultModel = models.firstOrNull { it.isDefault } ?: models.firstOrNull()
             _uiState.update {
                 it.copy(
-                    modelName = defaultModel?.displayName.orEmpty(),
-                    selectedModelId = defaultModel?.id,
+                    modelName = defaultModel.displayName,
+                    selectedModelId = selectedModelId,
+                    selectedReasoningMode = selectedReasoningMode,
+                    modelOptions = modelOptions,
+                    isModelCatalogLoaded = modelsResult.isSuccess,
+                    modelConfigError = modelsResult.exceptionOrNull()?.toUiError(),
                     sessions = visibleSessions,
-                    selectedSessionId = selected?.sessionId,
+                    selectedSessionId = null,
+                    draftId = "draft-${UUID.randomUUID()}",
+                    messages = emptyList(),
                     isInitializing = false
                 )
             }
-            if (selected != null) loadMessages(selected.sessionId)
-            else newChat()
+            authStore.saveSelectedSessionId(null)
             stored.activeClientRequestId?.let { recoverGeneration(it, fromStartup = true) }
-        }.onFailure { error ->
-            _uiState.update { it.copy(isInitializing = false, error = error.toUiError()) }
+        } else {
+            _uiState.update {
+                it.copy(
+                    modelName = defaultModel.displayName,
+                    selectedModelId = selectedModelId,
+                    selectedReasoningMode = selectedReasoningMode,
+                    modelOptions = modelOptions,
+                    isModelCatalogLoaded = modelsResult.isSuccess,
+                    modelConfigError = modelsResult.exceptionOrNull()?.toUiError(),
+                    isInitializing = false,
+                    error = sessionsResult.exceptionOrNull()?.toUiError()
+                )
+            }
+        }
+    }
+
+    private fun toggleModelMenu() {
+        _uiState.update {
+            it.copy(
+                isModelMenuOpen = !it.isModelMenuOpen,
+                modelConfigError = null
+            )
+        }
+    }
+
+    private fun closeModelMenu() {
+        _uiState.update { it.copy(isModelMenuOpen = false, modelConfigError = null) }
+    }
+
+    private fun selectModel(modelId: String) {
+        val state = _uiState.value
+        if (state.isModelConfigUpdating || modelId == state.selectedModelId) return
+        val option = state.modelOptions.firstOrNull { it.id == modelId } ?: return
+        val previousId = state.selectedModelId
+        val previousName = state.modelName
+        _uiState.update {
+            it.copy(
+                selectedModelId = option.id,
+                modelName = option.displayName,
+                modelConfigError = null
+            )
+        }
+        val sessionId = state.selectedSessionId ?: return
+        _uiState.update { it.copy(isModelConfigUpdating = true) }
+        viewModelScope.launch {
+            runCatching { repository.updateSession(sessionId = sessionId, modelId = modelId) }
+                .onSuccess { updated -> applyUpdatedSession(updated) }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            selectedModelId = previousId,
+                            modelName = previousName,
+                            isModelConfigUpdating = false,
+                            modelConfigError = error.toUiError()
+                        )
+                    }
+                    if (error is ApiException && error.code == "MODEL_NOT_FOUND") {
+                        refreshModelCatalogAndFallback()
+                    }
+                }
+        }
+    }
+
+    private fun selectReasoningMode(mode: ReasoningModeUi) {
+        val state = _uiState.value
+        if (state.isModelConfigUpdating || mode == state.selectedReasoningMode) return
+        val selectedModel = state.modelOptions.firstOrNull { it.id == state.selectedModelId }
+        if (selectedModel == null || mode !in selectedModel.reasoningModes) return
+        val previous = state.selectedReasoningMode
+        _uiState.update { it.copy(selectedReasoningMode = mode, modelConfigError = null) }
+        val sessionId = state.selectedSessionId ?: return
+        _uiState.update { it.copy(isModelConfigUpdating = true) }
+        viewModelScope.launch {
+            runCatching {
+                repository.updateSession(sessionId = sessionId, reasoningMode = mode.apiValue)
+            }.onSuccess { updated -> applyUpdatedSession(updated) }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            selectedReasoningMode = previous,
+                            isModelConfigUpdating = false,
+                            modelConfigError = error.toUiError()
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun applyUpdatedSession(session: ChatSessionModel) {
+        val option = _uiState.value.modelOptions.firstOrNull { it.id == session.modelId }
+        _uiState.update { state ->
+            state.copy(
+                selectedModelId = session.modelId,
+                modelName = option?.displayName ?: state.modelName,
+                selectedReasoningMode = session.reasoningMode.toReasoningModeUi(),
+                sessions = upsertSession(state.sessions, session.toUi()),
+                isModelConfigUpdating = false,
+                modelConfigError = null
+            )
+        }
+    }
+
+    private fun refreshModelCatalogAndFallback() {
+        viewModelScope.launch {
+            val result = runCatching { repository.models() }
+            val models = result.getOrDefault(emptyList())
+            val options = models.toUiOptions()
+            val default = options.firstOrNull(ModelOption::isDefault) ?: options.first()
+            _uiState.update {
+                it.copy(
+                    selectedModelId = default.id,
+                    modelName = default.displayName,
+                    selectedReasoningMode = ReasoningModeUi.STANDARD,
+                    modelOptions = options,
+                    isModelCatalogLoaded = result.isSuccess,
+                    isModelConfigUpdating = false,
+                    modelConfigError = result.exceptionOrNull()?.toUiError() ?: UiError.VALIDATION
+                )
+            }
         }
     }
 
@@ -127,12 +258,19 @@ class ChatViewModel(
 
     private fun selectSession(sessionId: String) {
         if (_uiState.value.isGenerating) return
-        _uiState.update {
-            it.copy(
+        _uiState.update { state ->
+            val session = state.sessions.firstOrNull { it.sessionId == sessionId }
+            val option = state.modelOptions.firstOrNull { it.id == session?.modelId }
+            state.copy(
                 selectedSessionId = sessionId,
                 draftId = null,
                 isDrawerOpen = false,
-                composerText = ""
+                isModelMenuOpen = false,
+                selectedModelId = session?.modelId ?: state.selectedModelId,
+                modelName = option?.displayName ?: state.modelName,
+                selectedReasoningMode = session?.reasoningMode ?: ReasoningModeUi.STANDARD,
+                composerText = "",
+                modelConfigError = null
             )
         }
         viewModelScope.launch { authStore.saveSelectedSessionId(sessionId) }
@@ -171,10 +309,14 @@ class ChatViewModel(
         if (state.selectedSessionId != sessionId) return
         val nextSession = remainingSessions.firstOrNull()
         if (nextSession != null) {
-            _uiState.update {
-                it.copy(
+            _uiState.update { current ->
+                val model = current.modelOptions.firstOrNull { it.id == nextSession.modelId }
+                current.copy(
                     selectedSessionId = nextSession.sessionId,
                     draftId = null,
+                    selectedModelId = nextSession.modelId,
+                    modelName = model?.displayName ?: current.modelName,
+                    selectedReasoningMode = nextSession.reasoningMode,
                     messages = emptyList(),
                     composerText = ""
                 )
@@ -185,10 +327,15 @@ class ChatViewModel(
             }
         } else {
             val draftId = "draft-${UUID.randomUUID()}"
-            _uiState.update {
-                it.copy(
+            _uiState.update { current ->
+                val defaultModel = current.modelOptions.firstOrNull(ModelOption::isDefault)
+                    ?: current.modelOptions.firstOrNull()
+                current.copy(
                     selectedSessionId = null,
                     draftId = draftId,
+                    selectedModelId = defaultModel?.id ?: DEFAULT_MODEL_ID,
+                    modelName = defaultModel?.displayName.orEmpty(),
+                    selectedReasoningMode = ReasoningModeUi.STANDARD,
                     messages = emptyList(),
                     composerText = "",
                     error = null
@@ -235,12 +382,19 @@ class ChatViewModel(
         if (_uiState.value.isGenerating) return
         val draftId = "draft-${UUID.randomUUID()}"
         _uiState.update {
+            val defaultModel = it.modelOptions.firstOrNull(ModelOption::isDefault)
+                ?: it.modelOptions.firstOrNull()
             it.copy(
                 selectedSessionId = null,
                 draftId = draftId,
+                selectedModelId = defaultModel?.id ?: DEFAULT_MODEL_ID,
+                modelName = defaultModel?.displayName.orEmpty(),
+                selectedReasoningMode = ReasoningModeUi.STANDARD,
                 messages = emptyList(),
                 composerText = "",
                 isDrawerOpen = false,
+                isModelMenuOpen = false,
+                modelConfigError = null,
                 error = null
             )
         }
@@ -279,6 +433,7 @@ class ChatViewModel(
                 messages = it.messages + optimistic,
                 composerText = "",
                 isGenerating = true,
+                isModelMenuOpen = false,
                 error = null
             )
         }
@@ -293,6 +448,8 @@ class ChatViewModel(
                     clientMessageId = clientMessageId,
                     sessionId = state.selectedSessionId,
                     modelId = state.selectedSessionId?.let { null } ?: state.selectedModelId,
+                    reasoningMode = state.selectedSessionId?.let { null }
+                        ?: state.selectedReasoningMode.apiValue,
                     content = content
                 ).collect { event ->
                     when (event) {
@@ -330,9 +487,13 @@ class ChatViewModel(
         val meta = event.value
         val session = meta.session.toModel()
         _uiState.update { state ->
+            val option = state.modelOptions.firstOrNull { it.id == session.modelId }
             state.copy(
                 selectedSessionId = session.id,
                 draftId = null,
+                selectedModelId = session.modelId,
+                modelName = option?.displayName ?: state.modelName,
+                selectedReasoningMode = session.reasoningMode.toReasoningModeUi(),
                 sessions = upsertSession(state.sessions, session.toUi()),
                 messages = state.messages.map { message ->
                     when (message.id) {
@@ -363,7 +524,11 @@ class ChatViewModel(
         val assistant = event.value.assistantMessage.toModel().toUi()
         val session = event.value.session.toModel().toUi()
         _uiState.update { state ->
+            val option = state.modelOptions.firstOrNull { it.id == session.modelId }
             state.copy(
+                selectedModelId = session.modelId,
+                modelName = option?.displayName ?: state.modelName,
+                selectedReasoningMode = session.reasoningMode,
                 messages = state.messages.map { if (it.id == assistant.id) assistant else it },
                 sessions = upsertSession(state.sessions, session)
             )
@@ -379,6 +544,20 @@ class ChatViewModel(
             val result = runCatching { repository.generation(clientRequestId) }
             val generation = result.getOrNull()
             if (generation != null) {
+                val recoveredModelId = generation.modelId
+                    ?: generation.assistantMessage.modelId
+                    ?: _uiState.value.selectedModelId
+                val recoveredModelName = _uiState.value.modelOptions
+                    .firstOrNull { it.id == recoveredModelId }
+                    ?.displayName
+                    ?: _uiState.value.modelName
+                _uiState.update {
+                    it.copy(
+                        selectedModelId = recoveredModelId,
+                        modelName = recoveredModelName,
+                        selectedReasoningMode = generation.reasoningMode.toReasoningModeUi()
+                    )
+                }
                 if ((fromStartup && !startupMessagesLoaded) ||
                     _uiState.value.selectedSessionId != generation.sessionId
                 ) {
@@ -468,10 +647,34 @@ private class StreamFailure(val code: String) : IOException(code)
 private fun ChatSessionModel.toUi() = ChatSession(
     sessionId = id,
     sessionTitle = title,
+    modelId = modelId,
+    reasoningMode = reasoningMode.toReasoningModeUi(),
     messagePreview = messagePreview.orEmpty(),
     updatedAtText = formatUpdatedAt(updatedAt),
     isPinned = isPinned
 )
+
+private fun List<ChatModel>.toUiOptions(): List<ModelOption> {
+    val catalogById = associateBy(ChatModel::id)
+    return SUPPORTED_MODEL_IDS.map { modelId ->
+        ModelOption(
+            id = modelId,
+            displayName = modelId.removePrefix("chat-"),
+            reasoningModes = ReasoningModeUi.entries.toSet(),
+            isDefault = catalogById[modelId]?.isDefault == true || modelId == DEFAULT_MODEL_ID
+        )
+    }
+}
+
+private val SUPPORTED_MODEL_IDS = listOf(DEFAULT_MODEL_ID, "chat-5.6")
+
+private fun String.toReasoningModeUi(): ReasoningModeUi {
+    val resolved = ReasoningModeUi.entries.firstOrNull { it.apiValue == this }
+    if (resolved == null) {
+        Log.w("ChatViewModel", "Unknown public reasoning mode; falling back to standard")
+    }
+    return resolved ?: ReasoningModeUi.STANDARD
+}
 
 private fun ChatMessageModel.toUi() = ChatMessage(
     id = id,
