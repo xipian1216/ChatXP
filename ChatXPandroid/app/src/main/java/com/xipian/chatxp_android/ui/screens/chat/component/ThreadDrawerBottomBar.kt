@@ -36,6 +36,7 @@ import com.xipian.chatxp_android.ui.token.Space4
 fun ThreadDrawerBottomBar(
     chatButtonText: String,
     profileLabel: String,
+    showGuestIcon: Boolean = false,
     onNewChatClick: () -> Unit,
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -88,7 +89,15 @@ fun ThreadDrawerBottomBar(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = profileLabel, style = MaterialTheme.typography.labelMedium)
+                if (showGuestIcon) {
+                    Icon(
+                        painter = painterResource(R.drawable.tourist),
+                        contentDescription = stringResource(R.string.auth_open),
+                        modifier = Modifier.size(IconSize)
+                    )
+                } else {
+                    Text(text = profileLabel, style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
     }
@@ -101,6 +110,7 @@ private fun ThreadDrawerBottomBarPreview() {
         ThreadDrawerBottomBar(
             chatButtonText = stringResource(R.string.drawer_chat_button),
             profileLabel = stringResource(R.string.drawer_profile_label),
+            showGuestIcon = true,
             onNewChatClick = {},
             onProfileClick = {}
         )

@@ -1,20 +1,23 @@
 package com.xipian.chatxp_android.data.remote
 
 import com.xipian.chatxp_android.data.remote.dto.AnonymousAuthRequestDto
+import com.xipian.chatxp_android.data.remote.dto.AuthUserDto
 import com.xipian.chatxp_android.data.remote.dto.DataEnvelopeDto
 import com.xipian.chatxp_android.data.remote.dto.GenerationDto
 import com.xipian.chatxp_android.data.remote.dto.MessageListDto
 import com.xipian.chatxp_android.data.remote.dto.ModelListDto
+import com.xipian.chatxp_android.data.remote.dto.LoginRequestDto
 import com.xipian.chatxp_android.data.remote.dto.RefreshRequestDto
+import com.xipian.chatxp_android.data.remote.dto.RegisterRequestDto
 import com.xipian.chatxp_android.data.remote.dto.SessionListDto
 import com.xipian.chatxp_android.data.remote.dto.SessionDto
 import com.xipian.chatxp_android.data.remote.dto.SessionUpdateRequestDto
 import com.xipian.chatxp_android.data.remote.dto.TokenDto
 import retrofit2.http.Body
 import retrofit2.http.GET
-import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.PATCH
 import retrofit2.http.Query
 
 interface AuthApi {
@@ -25,6 +28,20 @@ interface AuthApi {
 
     @POST("api/v1/auth/refresh")
     suspend fun refresh(@Body body: RefreshRequestDto): DataEnvelopeDto<TokenDto>
+}
+
+interface AccountApi {
+    @GET("api/v1/auth/me")
+    suspend fun me(): DataEnvelopeDto<AuthUserDto>
+
+    @POST("api/v1/auth/register")
+    suspend fun register(@Body body: RegisterRequestDto): DataEnvelopeDto<TokenDto>
+
+    @POST("api/v1/auth/login")
+    suspend fun login(@Body body: LoginRequestDto): DataEnvelopeDto<TokenDto>
+
+    @POST("api/v1/auth/logout")
+    suspend fun logout(): DataEnvelopeDto<TokenDto>
 }
 
 interface ChatXpApi {

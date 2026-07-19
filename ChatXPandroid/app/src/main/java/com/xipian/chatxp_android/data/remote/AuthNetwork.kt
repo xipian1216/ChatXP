@@ -25,6 +25,7 @@ class BearerInterceptor(private val authRepository: AuthRepository) : Intercepto
 
 class TokenAuthenticator(private val authRepository: AuthRepository) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
+        if (response.request.url.encodedPath.endsWith("/auth/login")) return null
         if (responseCount(response) >= 2) return null
         val failedToken = response.request.header("Authorization")?.removePrefix("Bearer ")
         val token = runBlocking { authRepository.refreshAfterUnauthorized(failedToken) } ?: return null

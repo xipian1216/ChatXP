@@ -104,3 +104,14 @@ val ToastMinWidth: Dp = 160.dp
 val ToastHorizontalPadding: Dp = 14.dp
 val ToastVerticalPadding: Dp = 10.dp
 val ToastBottomOffset: Dp = 94.dp
+
+val AuthHorizontalPadding: Dp = 24.dp
+val AuthTopPadding: Dp = 20.dp
+val AuthContentMaxWidth: Dp = 420.dp
+val AuthHeaderSpacing: Dp = 24.dp
+val AuthTabHeight: Dp = 52.dp
+val AuthSectionSpacing: Dp = 24.dp
+val AuthFieldSpacing: Dp = 16.dp
+val AuthFieldMinHeight: Dp = 56.dp
+val AuthButtonMinHeight: Dp = 52.dp
+val AuthAgreementTopSpacing: Dp = 28.dp

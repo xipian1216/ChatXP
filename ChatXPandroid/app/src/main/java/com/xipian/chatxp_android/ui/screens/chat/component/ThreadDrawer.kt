@@ -62,6 +62,7 @@ fun ThreadDrawer(
     emptySearchText: String,
     chatButtonText: String,
     profileLabel: String,
+    showGuestIcon: Boolean = false,
     onSearchQueryChange: (String) -> Unit,
     onSessionSelected: (String) -> Unit,
     onSessionRenamed: (String, String) -> Unit,
@@ -160,6 +161,7 @@ fun ThreadDrawer(
                     ThreadDrawerBottomBar(
                         chatButtonText = chatButtonText,
                         profileLabel = profileLabel,
+                        showGuestIcon = showGuestIcon,
                         onNewChatClick = onNewChatClick,
                         onProfileClick = onProfileClick
                     )

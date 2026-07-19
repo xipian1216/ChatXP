@@ -4,6 +4,7 @@ import android.content.Context
 import com.xipian.chatxp_android.BuildConfig
 import com.xipian.chatxp_android.data.local.AuthStore
 import com.xipian.chatxp_android.data.remote.AuthApi
+import com.xipian.chatxp_android.data.remote.AccountApi
 import com.xipian.chatxp_android.data.remote.BearerInterceptor
 import com.xipian.chatxp_android.data.remote.ChatStreamClient
 import com.xipian.chatxp_android.data.remote.ChatXpApi
@@ -27,7 +28,7 @@ class AppContainer(context: Context) {
 
     private val unauthenticatedClient = OkHttpClient.Builder().build()
     private val authApi = retrofit(unauthenticatedClient).create(AuthApi::class.java)
-    val authRepository = AuthRepository(authApi, authStore)
+    val authRepository = AuthRepository(authApi, authStore, json = json)
 
     private val authenticatedClient = OkHttpClient.Builder()
         .addInterceptor(BearerInterceptor(authRepository))
@@ -37,6 +38,10 @@ class AppContainer(context: Context) {
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
     private val api = retrofit(authenticatedClient).create(ChatXpApi::class.java)
+
+    init {
+        authRepository.bindAccountApi(retrofit(authenticatedClient).create(AccountApi::class.java))
+    }
 
     val chatRepository = ChatRepository(
         api = api,

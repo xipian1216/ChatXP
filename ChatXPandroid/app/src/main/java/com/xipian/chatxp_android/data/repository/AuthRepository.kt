@@ -4,22 +4,84 @@ import android.util.Base64
 import com.xipian.chatxp_android.BuildConfig
 import com.xipian.chatxp_android.data.local.AuthSnapshot
 import com.xipian.chatxp_android.data.local.CredentialStore
+import com.xipian.chatxp_android.data.model.AccountType
+import com.xipian.chatxp_android.data.model.AuthUser
+import com.xipian.chatxp_android.data.remote.AccountApi
+import com.xipian.chatxp_android.data.remote.ApiException
 import com.xipian.chatxp_android.data.remote.AuthApi
 import com.xipian.chatxp_android.data.remote.dto.AnonymousAuthRequestDto
+import com.xipian.chatxp_android.data.remote.dto.AuthUserDto
+import com.xipian.chatxp_android.data.remote.dto.ErrorEnvelopeDto
+import com.xipian.chatxp_android.data.remote.dto.LoginRequestDto
 import com.xipian.chatxp_android.data.remote.dto.RefreshRequestDto
+import com.xipian.chatxp_android.data.remote.dto.RegisterRequestDto
 import com.xipian.chatxp_android.data.remote.dto.TokenDto
 import java.security.SecureRandom
 import java.util.UUID
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import retrofit2.HttpException
 
 class AuthRepository(
     private val authApi: AuthApi,
     private val authStore: CredentialStore,
+    private val json: Json = Json { ignoreUnknownKeys = true },
     private val nowMillis: () -> Long = System::currentTimeMillis
 ) {
     private val mutex = Mutex()
     @Volatile private var cachedSnapshot: AuthSnapshot? = null
+    @Volatile private var accountApi: AccountApi? = null
+    private val _currentUser = MutableStateFlow<AuthUser?>(null)
+    val currentUser: StateFlow<AuthUser?> = _currentUser.asStateFlow()
+
+    fun bindAccountApi(api: AccountApi) {
+        accountApi = api
+    }
+
+    suspend fun initializeUser(): AuthUser {
+        validAccessToken()
+        val stored = mutex.withLock { snapshot().toAuthUser() }
+        val remote = accountApi?.let { api ->
+            runCatching { apiCall { api.me().data.toModel() } }.getOrNull()
+        }
+        return (remote ?: stored ?: mutex.withLock {
+            val state = snapshot()
+            AuthUser(state.userId.orEmpty(), AccountType.GUEST)
+        }).also { _currentUser.value = it }
+    }
+
+    suspend fun register(displayName: String, email: String, password: String): AuthUser {
+        val api = requireAccountApi()
+        val token = apiCall {
+            api.register(RegisterRequestDto(displayName, email, password)).data
+        }
+        return mutex.withLock { persistTokens(snapshot(), token).toAuthUser()!! }
+            .also { _currentUser.value = it }
+    }
+
+    suspend fun login(email: String, password: String): AuthUser {
+        val api = requireAccountApi()
+        val token = apiCall { api.login(LoginRequestDto(email, password)).data }
+        return mutex.withLock { persistTokens(snapshot(), token).toAuthUser()!! }
+            .also { _currentUser.value = it }
+    }
+
+    suspend fun logout(): AuthUser {
+        val api = requireAccountApi()
+        val token = apiCall { api.logout().data }
+        return mutex.withLock {
+            authStore.saveSelectedSessionId(null)
+            authStore.saveActiveClientRequestId(null)
+            persistTokens(
+                snapshot().copy(selectedSessionId = null, activeClientRequestId = null),
+                token
+            ).toAuthUser()!!
+        }.also { _currentUser.value = it }
+    }
 
     suspend fun validAccessToken(): String = mutex.withLock {
         val snapshot = snapshot()
@@ -77,19 +139,33 @@ class AuthRepository(
 
     private suspend fun persistTokens(snapshot: AuthSnapshot, token: TokenDto): AuthSnapshot {
         val now = nowMillis()
+        val user = token.user?.toModel()
+            ?: snapshot.toAuthUser()?.takeIf { it.id == token.userId }
+            ?: AuthUser(token.userId, AccountType.GUEST)
         val updated = snapshot.copy(
             accessToken = token.accessToken,
             refreshToken = token.refreshToken,
             accessExpiresAtMillis = now + token.expiresIn * 1000,
-            refreshExpiresAtMillis = now + token.refreshExpiresIn * 1000
+            refreshExpiresAtMillis = now + token.refreshExpiresIn * 1000,
+            userId = user.id,
+            accountType = user.accountType.name.lowercase(),
+            displayName = user.displayName,
+            email = user.email,
+            avatarText = user.avatarText
         )
-        authStore.saveTokens(
+        authStore.saveAuthSession(
             accessToken = updated.accessToken.orEmpty(),
             refreshToken = updated.refreshToken.orEmpty(),
             accessExpiresAtMillis = updated.accessExpiresAtMillis,
-            refreshExpiresAtMillis = updated.refreshExpiresAtMillis
+            refreshExpiresAtMillis = updated.refreshExpiresAtMillis,
+            userId = user.id,
+            accountType = updated.accountType.orEmpty(),
+            displayName = user.displayName,
+            email = user.email,
+            avatarText = user.avatarText
         )
         cachedSnapshot = updated
+        _currentUser.value = user
         return updated
     }
 
@@ -97,7 +173,50 @@ class AuthRepository(
         return cachedSnapshot ?: authStore.read().also { cachedSnapshot = it }
     }
 
+    private fun requireAccountApi(): AccountApi = checkNotNull(accountApi) {
+        "Account API has not been initialized"
+    }
+
+    private suspend fun <T> apiCall(block: suspend () -> T): T {
+        try {
+            return block()
+        } catch (error: HttpException) {
+            val raw = error.response()?.errorBody()?.string().orEmpty()
+            val envelope = runCatching {
+                json.decodeFromString(ErrorEnvelopeDto.serializer(), raw)
+            }.getOrNull()
+            throw ApiException(
+                code = envelope?.error?.code ?: "HTTP_ERROR",
+                statusCode = error.code(),
+                message = envelope?.error?.message ?: error.message()
+            )
+        }
+    }
+
     private companion object {
         const val EXPIRY_SKEW_MS = 30_000L
     }
 }
+
+private fun AuthSnapshot.toAuthUser(): AuthUser? {
+    val id = userId ?: return null
+    return AuthUser(
+        id = id,
+        accountType = if (accountType == "registered") {
+            AccountType.REGISTERED
+        } else {
+            AccountType.GUEST
+        },
+        displayName = displayName,
+        email = email,
+        avatarText = avatarText
+    )
+}
+
+private fun AuthUserDto.toModel() = AuthUser(
+    id = id,
+    accountType = if (accountType == "registered") AccountType.REGISTERED else AccountType.GUEST,
+    displayName = displayName,
+    email = email,
+    avatarText = avatarText
+)

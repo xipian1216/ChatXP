@@ -29,6 +29,8 @@ import com.xipian.chatxp_android.ui.theme.ChatXPandroidTheme
 fun ChatScreen(
     uiState: ChatUiState,
     onAction: (ChatAction) -> Unit,
+    profileLabel: String = "",
+    showGuestIcon: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     BackHandler(enabled = uiState.isDrawerOpen) { onAction(ChatAction.CloseDrawer) }
@@ -145,7 +147,8 @@ fun ChatScreen(
             searchPlaceholder = stringResource(R.string.drawer_search_placeholder),
             emptySearchText = stringResource(R.string.drawer_search_empty),
             chatButtonText = stringResource(R.string.drawer_chat_button),
-            profileLabel = stringResource(R.string.drawer_profile_label),
+            profileLabel = profileLabel,
+            showGuestIcon = showGuestIcon,
             onSearchQueryChange = { onAction(ChatAction.SearchChanged(it)) },
             onSessionSelected = { onAction(ChatAction.SelectSession(it)) },
             onSessionRenamed = { sessionId, title ->

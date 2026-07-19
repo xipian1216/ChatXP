@@ -84,8 +84,9 @@ AI_BASE_URL=https://example.com/v1
 AI_API_KEY=your-secret-key
 ```
 
-公开模型 ID `chat-default` 会在服务端映射到 `deepseek-v4-flash`。客户端只使用公开 ID，
-因此以后更换上游模型时不必修改 Android 的接口结构。
+公开模型 ID `chat-5.5`、`chat-5.6` 会在服务端分别映射到
+`deepseek-v4-flash`、`deepseek-v4-pro`。客户端只使用公开 ID 和
+`standard`、`advanced` 思考程度，因此以后更换上游模型时不必修改 Android 的接口结构。
 
 注意：
 
@@ -140,7 +141,7 @@ Python 包放在 `src/chatxp/`，而不是直接放在项目根目录。这可�
 
 ## 4. 依赖：每个库解决什么问题
 
-依赖统一定义在 [`server/pyproject.toml`](../server/pyproject.toml)。
+依赖统一定义在 [`server/pyproject.toml`](../../server/pyproject.toml)。
 
 ### 4.1 运行时依赖
 
@@ -290,7 +291,7 @@ class ChatProvider(Protocol):
 
 ## 6. 应用如何启动
 
-入口是 [`server/src/chatxp/main.py`](../server/src/chatxp/main.py)。`create_app()` 使用 application
+入口是 [`server/src/chatxp/main.py`](../../server/src/chatxp/main.py)。`create_app()` 使用 application
 factory 模式创建 FastAPI 实例，方便测试传入独立配置。
 
 生命周期按以下顺序执行：
@@ -313,7 +314,7 @@ factory 模式创建 FastAPI 实例，方便测试传入独立配置。
 
 ## 7. 配置管理规范
 
-配置类位于 [`server/src/chatxp/core/config.py`](../server/src/chatxp/core/config.py)。所有部署差异都应
+配置类位于 [`server/src/chatxp/core/config.py`](../../server/src/chatxp/core/config.py)。所有部署差异都应
 通过环境变量表达，不要把数据库地址、密钥或 Provider 地址硬编码到业务代码中。
 
 配置启动时校验，例如：
@@ -390,7 +391,7 @@ WHERE sessions.id = :session_id
 
 ## 9. 数据库设计入门
 
-ORM 表定义在 [`server/src/chatxp/db/tables.py`](../server/src/chatxp/db/tables.py)。
+ORM 表定义在 [`server/src/chatxp/db/tables.py`](../../server/src/chatxp/db/tables.py)。
 
 ```mermaid
 erDiagram
@@ -623,16 +624,16 @@ Markdown 在后端是一段透明 UTF-8 文本：
 公开模型 ID 与 Provider 模型名必须分离：
 
 ```text
-Android: chat-default
-              │
-              ▼
-ModelCatalog: deepseek-v4-flash
-              │
-              ▼
-Provider request
+Android: chat-5.5 / chat-5.6 + standard / advanced
+                          │
+                          ▼
+ModelCatalog: deepseek-v4-flash / deepseek-v4-pro
+                          │
+                          ▼
+Provider: thinking.type = disabled / enabled
 ```
 
-这样前端可以保留模型切换能力，而当前所有公开选项仍可映射到同一个真实 Flash 模型。
+这样前端可以独立切换模型与思考程度，同时不会接触供应商模型名或上游参数。
 
 ## 15. 测试体系
 

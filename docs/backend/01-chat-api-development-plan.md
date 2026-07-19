@@ -1,7 +1,7 @@
-# ChatXP V1 前后端接口与数据开发文档
+# ChatXP V1 后端 API 与数据开发计划
 
-> 文档状态：V1 开发基线  
-> 适用界面：聊天主界面、最近会话抽屉  
+> 文档状态：V1 后端开发基线<br>
+> 前端接入计划：[`../frontend/01-chat-api-integration-plan.md`](../frontend/01-chat-api-integration-plan.md)
 > API 前缀：`/api/v1`
 
 ## 1. 目标与范围
@@ -10,7 +10,8 @@
 
 V1 实现以下闭环：
 
-- 设备匿名身份初始化与令牌刷新。
+- 游客身份初始化、邮箱账号注册、登录、退出与令牌刷新。
+- 游客会话在注册或登录后自动保留到账号。
 - 获取可用模型并按会话切换模型。
 - 会话列表、搜索、切换、重命名、置顶、清空和删除。
 - 新聊天本地草稿、首条消息延迟建会话。
@@ -19,26 +20,17 @@ V1 实现以下闭环：
 
 以下功能不在 V1 实现范围：
 
-- 正式账号、跨设备同步和匿名数据绑定。
+- 邮箱验证、忘记密码和账号资料修改。
+- 多账号快捷切换和一键退出全部设备。
 - 附件、图片、语音和多模态消息。
 - 消息编辑、分支对话、重新生成和停止生成。
 - 消息反馈、个人资料和后台管理界面。
 
-附件、个人资料和反馈入口可以保留在客户端，但需显示“暂未开放”，不得调用未定义接口。消息复制完全由客户端本地完成。
+附件、忘记密码、个人资料编辑和反馈入口可以保留在客户端，但需显示“暂未开放”，不得调用未定义接口。消息复制完全由客户端本地完成。
 
 ## 2. 技术基线
 
-### 2.1 Android
-
-- Jetpack Compose 负责 UI。
-- ViewModel 暴露不可变 UI State 和用户 Intent。
-- Repository 隔离远程数据源与界面层。
-- Retrofit 处理普通 REST 请求。
-- OkHttp 处理 POST SSE 流和认证拦截。
-- Kotlin Serialization 处理 JSON。
-- DataStore 保存匿名身份材料和令牌。
-
-### 2.2 服务端
+### 2.1 服务端
 
 - FastAPI、Pydantic v2。
 - SQLAlchemy 2.x 异步会话、`aiosqlite` 驱动。
@@ -46,7 +38,7 @@ V1 实现以下闭环：
 - OpenAI-compatible Provider 对接上游模型。
 - 单 Uvicorn worker、单服务实例。
 
-### 2.3 SQLite
+### 2.2 SQLite
 
 服务启动时必须设置：
 
@@ -101,10 +93,15 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 | 400 | `VALIDATION_ERROR` | 业务参数不合法 |
 | 401 | `AUTH_INVALID` | 令牌、installation secret 或 refresh token 无效 |
 | 401 | `AUTH_EXPIRED` | access token 已过期 |
+| 401 | `INVALID_CREDENTIALS` | 邮箱或密码错误 |
 | 404 | `MODEL_NOT_FOUND` | 模型不存在或已停用 |
 | 404 | `SESSION_NOT_FOUND` | 会话不存在或不属于当前用户 |
 | 404 | `GENERATION_NOT_FOUND` | 生成请求不存在或不属于当前用户 |
 | 409 | `SESSION_BUSY` | 会话有运行中的生成任务，禁止清空或删除 |
+| 409 | `EMAIL_ALREADY_REGISTERED` | 注册邮箱已存在 |
+| 409 | `ALREADY_AUTHENTICATED` | 当前 installation 已是登录状态 |
+| 409 | `AUTH_TRANSITION_BUSY` | 当前身份存在运行中的生成任务 |
+| 429 | `LOGIN_RATE_LIMITED` | 登录失败次数过多 |
 | 429 | `PROVIDER_RATE_LIMIT` | 上游模型限流 |
 | 502 | `PROVIDER_UNAVAILABLE` | 上游模型不可用或返回非法响应 |
 | 500 | `GENERATION_INTERRUPTED` | 服务重启导致未完成任务中断 |
@@ -130,7 +127,17 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 
 ## 4. 公开数据模型
 
-### 4.1 ModelOption
+### 4.1 AuthUser
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `id` | UUID | 是 | 当前用户 ID |
+| `account_type` | `guest` / `registered` | 是 | 游客或注册账号 |
+| `display_name` | string/null | 是 | 游客为 `null` |
+| `email` | string/null | 是 | 游客为 `null` |
+| `avatar_text` | string/null | 是 | 用户名首个字素；游客为 `null` |
+
+### 4.2 ModelOption
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -140,16 +147,18 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 | `is_default` | boolean | 是 | 是否为默认模型；列表中必须且只能有一个 |
 | `capabilities.streaming` | boolean | 是 | V1 固定为 `true` |
 | `capabilities.attachments` | boolean | 是 | V1 固定为 `false` |
+| `capabilities.reasoning_modes` | array | 是 | 支持的思考程度，本期为 `standard`、`advanced` |
 
 客户端不可见上游供应商模型名、API Key 和 Base URL。
 
-### 4.2 Session
+### 4.3 Session
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `id` | UUID | 是 | 会话 ID |
 | `title` | string | 是 | 1–100 字符 |
 | `model_id` | string | 是 | 后续消息使用的默认模型 |
+| `reasoning_mode` | `standard` / `advanced` | 是 | 后续消息使用的默认思考程度 |
 | `is_pinned` | boolean | 是 | 是否置顶 |
 | `last_message_preview` | string/null | 是 | 最后消息前 80 个 Unicode 字符 |
 | `message_count` | integer | 是 | 当前未删除消息数量 |
@@ -158,7 +167,7 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 
 服务端列表排序固定为：`is_pinned DESC, updated_at DESC, id DESC`。置顶操作也更新 `updated_at`，使最近置顶的会话优先显示。
 
-### 4.3 Message
+### 4.4 Message
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -169,6 +178,7 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 | `status` | `streaming` / `completed` / `failed` | 是 | 消息状态 |
 | `sequence` | integer | 是 | 会话内从 1 开始递增的稳定顺序 |
 | `model_id` | string/null | 是 | assistant 实际使用的公开模型别名 |
+| `reasoning_mode` | `standard` / `advanced` / null | 是 | assistant 实际使用的思考程度 |
 | `client_message_id` | UUID/null | 是 | user 消息幂等 ID |
 | `error_code` | string/null | 是 | assistant 失败原因 |
 | `prompt_tokens` | integer/null | 是 | 上游返回的输入 token 数 |
@@ -176,9 +186,9 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 | `created_at` | datetime | 是 | 创建时间 |
 | `updated_at` | datetime | 是 | 更新时间 |
 
-用户消息写入后状态直接为 `completed`。assistant 消息创建时为 `streaming`，正常结束后改为 `completed`，失败时改为 `failed`。
+用户消息写入后状态直接为 `completed`，`model_id` 和 `reasoning_mode` 均为 `null`。assistant 消息创建时为 `streaming`，正常结束后改为 `completed`，失败时改为 `failed`。
 
-### 4.4 Generation
+### 4.5 Generation
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -187,15 +197,18 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 | `status` | `queued` / `streaming` / `completed` / `failed` | 是 | 生成状态 |
 | `session_id` | UUID | 是 | 所属会话 |
 | `user_message_id` | UUID | 是 | 本次用户消息 |
+| `reasoning_mode` | `standard` / `advanced` | 是 | 本次生成实际使用的思考程度 |
 | `assistant_message` | Message | 是 | 当前部分内容或最终内容 |
 | `error_code` | string/null | 是 | 失败原因 |
 | `error_message` | string/null | 是 | 开发诊断信息 |
 | `created_at` | datetime | 是 | 创建时间 |
 | `updated_at` | datetime | 是 | 更新时间 |
 
-## 5. 身份接口
+## 5. 身份与账号接口
 
-### 5.1 初始化或恢复匿名身份
+所有 token 响应在既有字段基础上增加 `user: AuthUser`。Access token包含 `installation_id` 和 `token_version`，服务端鉴权时同时检查 installation 绑定关系和版本。
+
+### 5.1 初始化或恢复 installation
 
 `POST /api/v1/auth/anonymous`
 
@@ -216,7 +229,8 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 
 - `installation_id` 由 Android 首次启动时生成并持久化。
 - `installation_secret` 使用安全随机数生成，至少 32 字节，服务端只保存哈希。
-- 相同 installation ID 首次请求创建用户；后续请求必须通过 secret 校验。
+- 相同 installation ID 首次请求创建游客；后续请求必须通过 secret 校验。
+- installation 已绑定注册账号时恢复该账号，已退出时恢复新游客。
 - 不返回已存在设备的原始 secret。
 
 响应：
@@ -225,6 +239,13 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 {
   "data": {
     "user_id": "a5bd28fb-912a-41b1-a725-bf24415eec71",
+    "user": {
+      "id": "a5bd28fb-912a-41b1-a725-bf24415eec71",
+      "account_type": "guest",
+      "display_name": null,
+      "email": null,
+      "avatar_text": null
+    },
     "access_token": "eyJ...",
     "token_type": "Bearer",
     "expires_in": 3600,
@@ -234,7 +255,57 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 }
 ```
 
-### 5.2 刷新令牌
+### 5.2 获取当前用户
+
+`GET /api/v1/auth/me`
+
+需要 Bearer token，返回 `DataEnvelope<AuthUser>`。用于启动恢复、侧边栏头像和账号面板。
+
+### 5.3 注册
+
+`POST /api/v1/auth/register`
+
+需要当前游客 Bearer token。
+
+```json
+{
+  "display_name": "小明",
+  "email": "name@example.com",
+  "password": "example-password"
+}
+```
+
+- `display_name` 去除首尾空白后为 1–30 个字符，不要求唯一。
+- 邮箱规范化为小写并作为唯一登录标识。
+- 密码长度为 8–72 个字符，使用 Argon2id 哈希保存。
+- 当前游客原地升级为注册用户，user ID 与已有会话归属不变。
+- 成功后提升 installation token version、吊销旧 refresh token并返回新 token 响应。
+
+### 5.4 登录
+
+`POST /api/v1/auth/login`
+
+需要当前游客 Bearer token。
+
+```json
+{
+  "email": "name@example.com",
+  "password": "example-password"
+}
+```
+
+- 登录成功后，在单一事务中将游客 sessions、messages 和 generations 转移到目标账号。
+- 保留双方全部会话，不按标题或内容去重。
+- 当前 installation 改绑目标账号，游客旧 token失效。
+- 错误邮箱与错误密码统一返回 `401 INVALID_CREDENTIALS`。
+
+### 5.5 退出登录
+
+`POST /api/v1/auth/logout`
+
+需要当前注册用户 Bearer token且无请求体。服务端只吊销当前 installation 的 token，创建新游客并改绑当前 installation；成功返回新游客的 token 响应。其他设备保持登录，账号会话不转移给新游客。
+
+### 5.6 刷新令牌
 
 `POST /api/v1/auth/refresh`
 
@@ -246,9 +317,16 @@ SQLite 方案只用于 V1 单机或单容器部署。不得启动多个共享同
 }
 ```
 
-响应字段与匿名身份响应一致。每次成功刷新必须轮换 refresh token，并立即吊销旧 token。重复使用已吊销 token 返回 `401 AUTH_INVALID`。
+响应字段与匿名身份响应一致并包含 `user`。refresh token必须匹配 user 与 installation。每次成功刷新必须轮换 refresh token，并立即吊销旧 token。重复使用已吊销 token返回 `401 AUTH_INVALID`。
 
-Android 在普通请求收到 `AUTH_EXPIRED` 后只允许串行执行一次刷新，其余请求等待刷新结果；刷新失败后清除 token，并使用 installation ID 与 secret 恢复身份。
+Android 在普通请求收到 `AUTH_EXPIRED` 后只允许串行执行一次刷新，其余请求等待刷新结果；刷新失败后清除 token，并使用 installation ID 与 secret恢复 installation 当前绑定身份。
+
+### 5.7 账号转换限制
+
+- 注册、登录和退出必须是单一数据库事务。
+- 当前用户存在 `queued` 或 `streaming` generation 时返回 `409 AUTH_TRANSITION_BUSY`。
+- 登录失败按规范化邮箱与 installation 限制为 15 分钟内最多 5 次，超限返回 `429 LOGIN_RATE_LIMITED`。
+- 本期不提供忘记密码接口。
 
 ## 6. 模型接口
 
@@ -263,13 +341,25 @@ Android 在普通请求收到 `AUTH_EXPIRED` 后只允许串行执行一次刷�
   "data": {
     "items": [
       {
-        "id": "chat-default",
-        "display_name": "ChatXP",
-        "description": "通用对话模型",
+        "id": "chat-5.5",
+        "display_name": "5.5",
+        "description": "适合日常对话的 Flash 模型",
         "is_default": true,
         "capabilities": {
           "streaming": true,
-          "attachments": false
+          "attachments": false,
+          "reasoning_modes": ["standard", "advanced"]
+        }
+      },
+      {
+        "id": "chat-5.6",
+        "display_name": "5.6",
+        "description": "适合复杂任务的 Pro 模型",
+        "is_default": false,
+        "capabilities": {
+          "streaming": true,
+          "attachments": false,
+          "reasoning_modes": ["standard", "advanced"]
         }
       }
     ]
@@ -282,11 +372,11 @@ Android 在普通请求收到 `AUTH_EXPIRED` 后只允许串行执行一次刷�
 ```text
 AI_BASE_URL=
 AI_API_KEY=
-AI_DEFAULT_MODEL=chat-default
-AI_MODELS_JSON=[{"id":"chat-default","provider_model":"provider-model-name","display_name":"ChatXP","description":"通用对话模型"}]
+AI_DEFAULT_MODEL=chat-5.5
+AI_MODELS_JSON=[{"id":"chat-5.5","provider_model":"provider-flash-model","display_name":"5.5","description":"Flash 模型"},{"id":"chat-5.6","provider_model":"provider-pro-model","display_name":"5.6","description":"Pro 模型"}]
 ```
 
-`provider_model` 仅在服务端内部使用。
+`provider_model` 仅在服务端内部使用。`standard` 映射为关闭思考模式，`advanced` 映射为开启思考模式；具体上游参数由 Provider adapter 处理。专项规则见 [`03-model-switching-plan.md`](03-model-switching-plan.md)。
 
 ## 7. 会话接口
 
@@ -307,7 +397,8 @@ AI_MODELS_JSON=[{"id":"chat-default","provider_model":"provider-model-name","dis
       {
         "id": "97978da3-a40b-410f-ae60-c83ed26d142c",
         "title": "制定学习计划",
-        "model_id": "chat-default",
+        "model_id": "chat-5.5",
+        "reasoning_mode": "standard",
         "is_pinned": true,
         "last_message_preview": "我会把计划拆成四个阶段。",
         "message_count": 4,
@@ -336,7 +427,8 @@ AI_MODELS_JSON=[{"id":"chat-default","provider_model":"provider-model-name","dis
 ```json
 {
   "title": "新的标题",
-  "model_id": "chat-default",
+  "model_id": "chat-5.5",
+  "reasoning_mode": "standard",
   "is_pinned": true
 }
 ```
@@ -345,8 +437,9 @@ AI_MODELS_JSON=[{"id":"chat-default","provider_model":"provider-model-name","dis
 
 - `title` 去除首尾空白后长度为 1–100。
 - `model_id` 必须存在于当前模型目录。
-- 模型切换只影响后续生成；历史 assistant 消息的 `model_id` 不变。
-- 当前正在生成的任务捕获启动时的模型，切换不会修改该任务。
+- `reasoning_mode` 必须为该模型支持的 `standard` 或 `advanced`。
+- 模型或思考程度切换只影响后续生成；历史 assistant 消息的实际配置不变。
+- 当前正在生成的任务捕获启动时的模型和思考程度，切换不会修改该任务。
 
 响应为更新后的 `Session`。
 
@@ -411,7 +504,8 @@ AI_MODELS_JSON=[{"id":"chat-default","provider_model":"provider-model-name","dis
   "client_request_id": "1f5735d5-9c41-4350-bee2-728524106e55",
   "client_message_id": "50711fca-62c8-40d2-98a3-34c74d175962",
   "session_id": null,
-  "model_id": "chat-default",
+  "model_id": "chat-5.5",
+  "reasoning_mode": "standard",
   "content": "帮我制定一份学习计划"
 }
 ```
@@ -424,6 +518,7 @@ AI_MODELS_JSON=[{"id":"chat-default","provider_model":"provider-model-name","dis
 | `client_message_id` | 必填 UUID；标识本次用户消息并提供幂等性 |
 | `session_id` | 新聊天为 `null`；已有会话传真实 ID |
 | `model_id` | 新聊天必填；已有会话可省略并使用会话默认模型 |
+| `reasoning_mode` | 新聊天必填 `standard` 或 `advanced`；已有会话可省略并使用会话默认值 |
 | `content` | 必填；原始正文 1–20,000 个 Unicode 字符且必须包含非空白字符；服务端原样保留首尾空白、换行和 Markdown 标记 |
 
 新会话情况下，创建会话、用户消息、assistant 占位消息和 generation 记录必须处于同一个数据库事务。已有会话必须锁定或以事务方式计算下一 `sequence`，避免并发消息产生重复顺序。
@@ -523,7 +618,7 @@ Android 收到 `meta` 后，用真实 session ID 替换本地草稿 ID，并使�
 - 同一 `client_request_id` 和相同请求内容再次提交时，不重复写消息、不重复调用模型。
 - 任务仍在运行时，重复请求订阅同一任务的后续事件；客户端应先调用恢复接口取得当前完整内容。
 - 任务已结束时，重复请求依次返回 `meta` 和 `done`，然后关闭流。
-- 相同 ID 携带不同 session、model 或 content 时返回 `409 VALIDATION_ERROR`，`details.reason` 为 `IDEMPOTENCY_KEY_REUSED`。
+- 相同 ID 携带不同 session、model、reasoning mode 或 content 时返回 `409 VALIDATION_ERROR`，`details.reason` 为 `IDEMPOTENCY_KEY_REUSED`。
 
 ### 8.4 查询生成状态
 
@@ -539,6 +634,7 @@ Android 收到 `meta` 后，用真实 session ID 替换本地草稿 ID，并使�
     "status": "streaming",
     "session_id": "97978da3-a40b-410f-ae60-c83ed26d142c",
     "user_message_id": "0e82b353-7191-49d6-ab9f-995307f63782",
+    "reasoning_mode": "standard",
     "assistant_message": {},
     "error_code": null,
     "error_message": null,
@@ -559,31 +655,47 @@ Android 在 SSE 意外断开后按 1、2、4 秒递增并以 5 秒封顶的间�
 
 ## 9. 服务端持久化设计
 
-### 9.1 anonymous_users
+### 9.1 users
 
 | 字段 | 建议类型 | 约束 |
 |---|---|---|
 | `id` | string(36) | PK |
-| `installation_id` | string(36) | UNIQUE, NOT NULL |
+| `account_type` | string | CHECK guest/registered |
+| `display_name` | string(30)/null | 注册用户非空 |
+| `email_normalized` | string/null | 注册用户唯一 |
+| `password_hash` | string/null | 注册用户非空，Argon2id |
+| `created_at` | datetime | NOT NULL |
+| `updated_at` | datetime | NOT NULL |
+
+### 9.2 installations
+
+| 字段 | 建议类型 | 约束 |
+|---|---|---|
+| `installation_id` | string(36) | PK |
 | `installation_secret_hash` | string | NOT NULL |
+| `user_id` | string(36) | FK users.id, NOT NULL |
+| `token_version` | integer | NOT NULL, DEFAULT 1 |
 | `platform` | string | NOT NULL |
 | `app_version` | string | NOT NULL |
 | `created_at` | datetime | NOT NULL |
 | `last_seen_at` | datetime | NOT NULL |
 
-### 9.2 refresh_tokens
+一个注册用户可绑定多个 installations，一个 installation 同时只绑定一个用户。
+
+### 9.3 refresh_tokens
 
 | 字段 | 建议类型 | 约束 |
 |---|---|---|
 | `id` | string(36) | PK |
 | `user_id` | string(36) | FK, NOT NULL |
+| `installation_id` | string(36) | FK, NOT NULL |
 | `token_hash` | string | UNIQUE, NOT NULL |
 | `expires_at` | datetime | NOT NULL |
 | `revoked_at` | datetime/null | 允许为空 |
 | `replaced_by_id` | string(36)/null | 自引用 FK |
 | `created_at` | datetime | NOT NULL |
 
-### 9.3 sessions
+### 9.4 sessions
 
 | 字段 | 建议类型 | 约束 |
 |---|---|---|
@@ -591,13 +703,14 @@ Android 在 SSE 意外断开后按 1、2、4 秒递增并以 5 秒封顶的间�
 | `user_id` | string(36) | FK, NOT NULL |
 | `title` | string(100) | NOT NULL |
 | `model_id` | string | NOT NULL |
+| `reasoning_mode` | string | CHECK standard/advanced, NOT NULL |
 | `is_pinned` | boolean | NOT NULL, DEFAULT false |
 | `created_at` | datetime | NOT NULL |
 | `updated_at` | datetime | NOT NULL |
 
 索引：`(user_id, updated_at)`、`(user_id, is_pinned, updated_at)`。
 
-### 9.4 messages
+### 9.5 messages
 
 | 字段 | 建议类型 | 约束 |
 |---|---|---|
@@ -609,6 +722,7 @@ Android 在 SSE 意外断开后按 1、2、4 秒递增并以 5 秒封顶的间�
 | `status` | string | CHECK streaming/completed/failed |
 | `sequence` | integer | NOT NULL |
 | `model_id` | string/null | assistant 使用 |
+| `reasoning_mode` | string/null | assistant 使用，CHECK standard/advanced |
 | `client_message_id` | string(36)/null | user 使用 |
 | `error_code` | string/null | 允许为空 |
 | `prompt_tokens` | integer/null | 允许为空 |
@@ -618,7 +732,7 @@ Android 在 SSE 意外断开后按 1、2、4 秒递增并以 5 秒封顶的间�
 
 唯一约束：`(session_id, sequence)`、`(user_id, client_message_id)`。SQLite 迁移需使用部分唯一索引排除 `client_message_id IS NULL`。
 
-### 9.5 generations
+### 9.6 generations
 
 | 字段 | 建议类型 | 约束 |
 |---|---|---|
@@ -629,8 +743,9 @@ Android 在 SSE 意外断开后按 1、2、4 秒递增并以 5 秒封顶的间�
 | `user_message_id` | string(36) | FK ON DELETE CASCADE, NOT NULL |
 | `assistant_message_id` | string(36) | FK ON DELETE CASCADE, NOT NULL |
 | `model_id` | string | NOT NULL |
+| `reasoning_mode` | string | CHECK standard/advanced, NOT NULL |
 | `status` | string | CHECK queued/streaming/completed/failed |
-| `request_fingerprint` | string | 用于校验幂等请求内容 |
+| `request_fingerprint` | string | 校验幂等请求的会话、模型、思考程度和内容 |
 | `error_code` | string/null | 允许为空 |
 | `error_message` | string/null | 允许为空 |
 | `created_at` | datetime | NOT NULL |
@@ -638,100 +753,31 @@ Android 在 SSE 意外断开后按 1、2、4 秒递增并以 5 秒封顶的间�
 
 唯一约束：`(user_id, client_request_id)`。
 
-### 9.6 写入策略
+### 9.7 身份迁移与写入策略
 
 - 所有查询都必须同时限定当前 `user_id`。
+- Alembic 将既有 `anonymous_users` 迁移为 `users`，原记录标记为 `guest` 并保留 user ID。
+- 为每个原游客创建 installation，迁移 installation ID、secret hash、平台、版本与时间。
+- 既有 sessions、messages 和 generations 的 user ID 保持不变，升级后不得丢失游客历史。
+- 模型配置迁移将既有 `chat-default` 改为 `chat-5.5`，并为既有会话、assistant 消息和生成记录回填 `standard`。
+- 游客登录已有账号时，在同一事务内转移三类业务记录并改绑 installation；游客注册则原地升级。
+- 退出只改绑当前 installation 到新游客，不转移或删除账号会话。
 - 上游生成使用独立 `asyncio.Task`，HTTP 连接只订阅事件，不拥有任务生命周期。
 - assistant 内容累计达到 256 个字符或距离上次落库达到 500ms 时批量更新；结束和失败时强制落库。
 - 用户消息写入时立即更新会话 `updated_at`；完成时再更新摘要和 `updated_at`。
 - 上游 usage 不可用时 token 字段保持 `null`，不得估算后冒充供应商数据。
 - 模型目录来自配置而非数据库表；会话保存公开模型别名。
 
-## 10. Android 架构与界面数据流
+## 10. 前端边界
 
-### 10.1 分层
-
-建议按以下职责拆分：
-
-- `AuthRepository`：设备身份、token 保存和刷新。
-- `ModelRepository`：模型目录和默认模型。
-- `SessionRepository`：会话列表、搜索、分页和管理操作。
-- `ChatRepository`：消息分页、SSE 发送、分片解析和生成恢复。
-- `ChatViewModel`：组合当前会话、抽屉、模型、composer 和生成状态。
-
-API DTO、领域模型和 Compose UI Model 必须分离。现有 `updatedAtText` 不进入网络模型，由 Android 根据 `updated_at` 和 Locale 格式化为“刚刚”“昨天”或日期。
-
-### 10.2 推荐 UI State
-
-```kotlin
-data class ChatUiState(
-    val sessions: List<SessionUiModel>,
-    val selectedSessionId: String?,
-    val draftId: String?,
-    val messages: List<MessageUiModel>,
-    val models: List<ModelUiModel>,
-    val selectedModelId: String?,
-    val searchQuery: String,
-    val isDrawerOpen: Boolean,
-    val isLoadingSessions: Boolean,
-    val activeClientRequestId: String?,
-    val error: UiError?
-)
-```
-
-具体命名可按 Android 工程规范调整，但状态语义必须保持一致。
-
-### 10.3 启动流程
-
-1. 从 DataStore 读取或生成 installation ID 与 secret。
-2. 恢复匿名身份并获得 access token。
-3. 并行加载模型目录和第一页会话。
-4. 若存在上次选中的会话，加载其最新消息；否则显示空聊天状态。
-5. 检查本地记录的未完成 `client_request_id` 并调用生成恢复接口。
-
-### 10.4 新聊天与发送
-
-1. 点击新聊天时创建本地 draft ID，清空消息并保留当前模型选择。
-2. 不请求服务端，也不在抽屉插入永久会话。
-3. 发送时生成新的 `client_request_id` 和 `client_message_id`。
-4. 乐观插入 user 消息和 streaming assistant 占位。
-5. 收到 `meta` 后替换 draft、session 和消息临时 ID。
-6. `delta` 追加到对应 assistant 消息。
-7. `done` 使用服务端完整消息覆盖本地累计内容并刷新会话摘要。
-8. `error` 将 assistant 占位标记为失败。
-
-同一会话有任务处于 `queued/streaming` 时，V1 composer 禁用发送，避免并发生成与消息顺序歧义。
-
-### 10.5 抽屉与会话管理
-
-- 打开抽屉时展示已缓存列表，并在后台刷新第一页。
-- 搜索输入防抖 300ms；新的查询取消旧请求并从第一页重新加载。
-- 切换会话时先显示缓存，再请求最新消息页。
-- 置顶和重命名可以乐观更新；失败时回滚并提示。
-- 清空和删除等待服务端成功后再移除本地数据。
-- 删除当前会话后选择服务端列表中的第一项；列表为空时进入新聊天草稿态。
-
-### 10.6 模型切换
-
-- 草稿态切换只更新本地 `selectedModelId`。
-- 已有会话切换调用 `PATCH /sessions/{id}`。
-- PATCH 成功后更新顶部展示；失败时恢复原模型。
-- 生成进行中允许选择新模型，但只影响下一次发送。
-
-### 10.7 SSE 解析要求
-
-- 必须支持一个 JSON 事件跨多个网络 read buffer。
-- 按空行识别完整 SSE 帧，不按单次 socket read 解析。
-- 忽略 `: ping` 注释。
-- 记录最后成功处理的事件 `id` 和 delta `sequence`，忽略重复分片。
-- Activity/Composable 销毁不得自动取消服务端生成；连接关闭后进入恢复流程。
+Android 分层、页面状态、SSE 消费、缓存与交互规则由[前端聊天 API 接入计划](../frontend/01-chat-api-integration-plan.md)定义。本文件中的公开字段、HTTP 接口、SSE 事件和错误码是前后端联调的权威契约。
 
 ## 11. 安全和运维约束
 
 - 所有生产或外网环境必须使用 HTTPS。
-- installation secret、refresh token 和 AI API Key 只保存哈希或安全存储形式。
+- installation secret、refresh token、密码和 AI API Key 只保存哈希或安全存储形式；密码使用 Argon2id。
 - access token 建议为 1 小时 JWT；refresh token 为 90 天高熵不透明字符串。
-- JWT 必须包含 `sub`、`iat`、`exp`、`jti`，并验证签名和过期时间。
+- JWT 必须包含 `sub`、`installation_id`、`token_version`、`iat`、`exp`、`jti`，并验证签名、过期时间、installation 绑定和版本。
 - CORS 不作为 Android 安全控制；默认不开放任意 Web Origin。
 - 日志只记录 request ID、user ID、session ID、generation ID、模型别名、耗时和错误码。
 - 服务启动执行 Alembic upgrade，并完成遗留 generation 状态修复后才对外报告 ready。
@@ -741,12 +787,16 @@ data class ChatUiState(
 
 ### 12.1 服务端自动化测试
 
-- 首次匿名注册、同设备恢复、错误 secret 拒绝。
+- 首次游客初始化、同设备身份恢复、错误 secret 拒绝。
+- 游客原地注册后 user ID与会话保持不变。
+- 游客登录已有账号后双方会话完整合并，退出只影响当前设备。
+- 旧 token失效、重复邮箱、统一凭证错误、登录限流和活跃生成转换限制。
 - access token 过期、refresh token 轮换和旧 token 重放拒绝。
 - 不同用户之间的会话、消息和 generation 完全隔离。
-- 模型目录默认项唯一，未知模型返回 `MODEL_NOT_FOUND`。
+- 模型目录默认为 5.5，5.5/5.6 与标准/进阶的四种组合正确映射。
+- 未知模型返回 `MODEL_NOT_FOUND`，非法思考程度返回 `VALIDATION_ERROR`。
 - 会话搜索、置顶排序、游标稳定性和分页边界。
-- 标题截断、重命名、切换模型、清空和级联删除。
+- 标题截断、重命名、切换模型与思考程度、清空和级联删除。
 - 新会话发送的事务原子性和消息 sequence 唯一性。
 - SSE `meta → delta* → done` 顺序、UTF-8 分片和心跳。
 - 上游限流、不可用和中途失败映射。
@@ -754,40 +804,31 @@ data class ChatUiState(
 - 客户端断开后任务继续，恢复接口返回当前或最终内容。
 - 服务重启后遗留任务标为 `GENERATION_INTERRUPTED`。
 
-### 12.2 Android 自动化测试
-
-- 点击新聊天不会请求创建会话。
-- 首条消息收到 `meta` 后正确替换本地临时 ID。
-- SSE 跨 buffer、重复 delta、心跳和最终覆盖解析。
-- 模型切换在草稿与已有会话中的不同行为。
-- 搜索防抖、取消旧请求和分页追加。
-- 会话管理成功、失败回滚和 `SESSION_BUSY` 提示。
-- access token 单次刷新并发控制。
-- 断网、切后台和进程恢复后的 generation 查询。
-
-### 12.3 契约测试
+### 12.2 契约测试
 
 - FastAPI OpenAPI Schema 作为 REST DTO 的唯一来源。
 - Android DTO 使用导出的 OpenAPI fixture 校验字段名、可空性和枚举。
 - SSE 的 `meta`、`delta`、`done`、`error` 分别维护固定 JSON fixture。
 - 任何删除字段、重命名字段、改变可空性或枚举的改动都视为破坏性变更，必须升级 API 版本。
 
-### 12.4 端到端验收
+### 12.3 端到端验收
 
 满足以下条件才可视为 V1 闭环完成：
 
-1. 新安装应用可自动获得匿名身份。
-2. 用户可选择模型并发送首条文本消息。
+1. 新安装应用可自动获得游客身份且无需登录即可聊天。
+2. 用户可在 5.5/5.6 和标准/进阶之间选择，并发送首条文本消息。
 3. 回复以 SSE 增量展示，并在完成后持久化。
 4. 重启应用后可以恢复会话和消息历史。
 5. 抽屉可搜索、切换、重命名、置顶、清空和删除会话。
 6. SSE 中断后生成继续，客户端能恢复最终或当前内容。
-7. 两个匿名用户无法读取或修改彼此数据。
+7. 两个用户无法读取或修改彼此数据。
+8. 游客注册或登录后可继续访问此前游客会话。
+9. 当前设备退出后进入新游客状态，其他设备和账号会话不受影响。
 
 ## 13. 兼容性与后续演进
 
 - PostgreSQL 迁移只替换数据库配置、迁移脚本和并发实现，不改变 V1 HTTP 契约。
 - 多实例部署前，生成任务和事件总线必须迁移到可共享的队列/缓存系统。
 - 附件功能未来应引入结构化 `content_parts`，不得在 V1 的 `content` 中嵌入临时 JSON。
-- 正式账号上线时，通过显式绑定流程迁移匿名 user ID 下的数据，不直接复用 installation secret 作为账号凭证。
+- 邮箱验证、忘记密码、资料修改和账号注销作为后续独立能力，不改变现有游客会话合并语义。
 - 新增消息编辑、分支或重新生成时需要单独设计 parent message 和版本关系，不修改既有消息语义。

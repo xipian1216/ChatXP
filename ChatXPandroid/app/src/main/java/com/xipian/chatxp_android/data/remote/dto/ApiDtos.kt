@@ -30,13 +30,36 @@ data class AnonymousAuthRequestDto(
 data class RefreshRequestDto(@SerialName("refresh_token") val refreshToken: String)
 
 @Serializable
+data class RegisterRequestDto(
+    @SerialName("display_name") val displayName: String,
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class LoginRequestDto(
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class AuthUserDto(
+    val id: String,
+    @SerialName("account_type") val accountType: String,
+    @SerialName("display_name") val displayName: String? = null,
+    val email: String? = null,
+    @SerialName("avatar_text") val avatarText: String? = null
+)
+
+@Serializable
 data class TokenDto(
     @SerialName("user_id") val userId: String,
     @SerialName("access_token") val accessToken: String,
     @SerialName("token_type") val tokenType: String,
     @SerialName("expires_in") val expiresIn: Long,
     @SerialName("refresh_token") val refreshToken: String,
-    @SerialName("refresh_expires_in") val refreshExpiresIn: Long
+    @SerialName("refresh_expires_in") val refreshExpiresIn: Long,
+    val user: AuthUserDto? = null
 )
 
 @Serializable
